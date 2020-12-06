@@ -171,6 +171,7 @@ pub mod theme;
 pub mod widget;
 mod win_handler;
 mod window;
+mod diffable;
 
 // Types from kurbo & piet that are required by public API.
 pub use kurbo::{Affine, Insets, Point, Rect, Size, Vec2};
@@ -199,7 +200,7 @@ pub use event::{Event, InternalEvent, InternalLifeCycle, LifeCycle};
 pub use ext_event::{ExtEventError, ExtEventSink};
 pub use lens::{Lens, LensExt};
 pub use localization::LocalizedString;
-pub use menu::{sys as platform_menus, ContextMenu, MenuDesc, MenuItem};
+pub use diffable::Diffable;
 pub use mouse::MouseEvent;
 pub use text::{ArcStr, FontDescriptor, TextLayout};
 pub use util::Handled;
