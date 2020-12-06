@@ -17,7 +17,7 @@
 mod align;
 // mod button;
 // mod checkbox;
-// mod click;
+mod click;
 mod clip_box;
 mod common;
 // mod container;
@@ -58,7 +58,7 @@ mod widget;
 pub use align::Align;
 // pub use button::Button;
 // pub use checkbox::Checkbox;
-// pub use click::Click;
+pub use click::Click;
 pub use clip_box::{ClipBox, Viewport};
 pub use common::FillStrat;
 // pub use container::Container;
