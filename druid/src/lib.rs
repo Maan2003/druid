@@ -128,7 +128,8 @@
 #![warn(missing_docs)]
 #![allow(clippy::new_ret_no_self, clippy::needless_doctest_main)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-
+// TODO: Fix the warnings
+#![allow(warnings)]
 // Allows to use macros from druid_derive in this crate
 extern crate self as druid;
 pub use druid_derive::Lens;
@@ -160,9 +161,9 @@ mod env;
 mod event;
 mod ext_event;
 mod localization;
-mod menu;
+// mod menu;
 mod mouse;
-pub mod scroll_component;
+// pub mod scroll_component;
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests;
@@ -198,13 +199,14 @@ pub use data::Data;
 pub use env::{Env, Key, KeyOrValue, Value, ValueType};
 pub use event::{Event, InternalEvent, InternalLifeCycle, LifeCycle};
 pub use ext_event::{ExtEventError, ExtEventSink};
-pub use lens::{Lens, LensExt};
+pub use lens::Lens;
 pub use localization::LocalizedString;
 pub use diffable::Diffable;
+// pub use menu::{sys as platform_menus, ContextMenu, MenuDesc, MenuItem};
 pub use mouse::MouseEvent;
 pub use text::{ArcStr, FontDescriptor, TextLayout};
 pub use util::Handled;
-pub use widget::{Widget, WidgetExt, WidgetId};
+pub use widget::{Widget, WidgetId};
 pub use win_handler::DruidHandler;
 pub use window::{Window, WindowId};
 

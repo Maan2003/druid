@@ -15,10 +15,12 @@
 //! The fundamental druid types.
 
 use std::collections::{HashMap, VecDeque};
+use std::marker::PhantomData;
 
 use crate::bloom::Bloom;
 use crate::contexts::ContextState;
 use crate::kurbo::{Affine, Insets, Point, Rect, Shape, Size, Vec2};
+use crate::Diffable;
 use crate::util::ExtendDrain;
 use crate::{
     ArcStr, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx, InternalEvent,
@@ -46,7 +48,8 @@ pub(crate) type CommandQueue = VecDeque<Command>;
 /// [`update`]: trait.Widget.html#tymethod.update
 pub struct WidgetPod<T, W> {
     state: WidgetState,
-    old_data: Option<T>,
+//    old_data: Option<T>,
+    _data: PhantomData<*const T>,
     env: Option<Env>,
     inner: W,
     // stashed layout so we don't recompute this when debugging
@@ -79,6 +82,8 @@ pub(crate) struct WidgetState {
     origin: Point,
     /// A flag used to track and debug missing calls to set_origin.
     is_expecting_set_origin_call: bool,
+
+    intialized: bool,
     /// The insets applied to the layout rect to generate the paint rect.
     /// In general, these will be zero; the exception is for things like
     /// drop shadows or overflowing text.
@@ -157,7 +162,7 @@ pub(crate) enum CursorChange {
     Override(Cursor),
 }
 
-impl<T, W: Widget<T>> WidgetPod<T, W> {
+impl<T: Diffable, W: Widget<T>> WidgetPod<T, W> {
     /// Create a new widget pod.
     ///
     /// In a widget hierarchy, each widget is wrapped in a `WidgetPod`
@@ -169,7 +174,8 @@ impl<T, W: Widget<T>> WidgetPod<T, W> {
         state.needs_layout = true;
         WidgetPod {
             state,
-            old_data: None,
+//            old_data: None,
+            _data: PhantomData,
             env: None,
             inner,
             debug_widget_text: TextLayout::new(),
@@ -186,7 +192,7 @@ impl<T, W: Widget<T>> WidgetPod<T, W> {
     ///
     /// [`LifeCycle::WidgetAdded`]: ./enum.LifeCycle.html#variant.WidgetAdded
     pub fn is_initialized(&self) -> bool {
-        self.old_data.is_some()
+        self.state.intialized
     }
 
     /// Query the "active" state of the widget.
@@ -390,7 +396,7 @@ impl<T, W: Widget<T>> WidgetPod<T, W> {
     }
 }
 
-impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
+impl<T: Diffable, W: Widget<T>> WidgetPod<T, W> {
     /// Paint a child widget.
     ///
     /// Generally called by container widgets as part of their [`Widget::paint`]
@@ -578,9 +584,9 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
 
     /// Execute the closure with this widgets `EventCtx`.
     #[cfg(feature = "crochet")]
-    pub fn with_event_context<F>(&mut self, parent_ctx: &mut EventCtx, mut fun: F)
+    pub fn with_event_context<F>(&mut self, parent_ctx: &mut EventCtx<T>, mut fun: F)
     where
-        F: FnMut(&mut W, &mut EventCtx),
+        F: FnMut(&mut W, &mut EventCtx<T>),
     {
         let mut ctx = EventCtx {
             state: parent_ctx.state,
@@ -588,6 +594,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
             notifications: parent_ctx.notifications,
             is_handled: false,
             is_root: false,
+            updates: parent_ctx.updates,
         };
         fun(&mut self.inner, &mut ctx);
         parent_ctx.widget_state.merge_up(&mut self.state);
@@ -601,7 +608,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
     /// the event.
     ///
     /// [`event`]: trait.Widget.html#tymethod.event
-    pub fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    pub fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         if !self.is_initialized() {
             debug_panic!(
                 "{:?}: event method called before receiving WidgetAdded.",
@@ -780,6 +787,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 notifications: &mut notifications,
                 is_handled: false,
                 is_root: false,
+                updates: ctx.updates,
             };
             let inner_event = modified_event.as_ref().unwrap_or(event);
             inner_ctx.widget_state.has_active = false;
@@ -804,9 +812,9 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
     /// list for the parent's `EventCtx`, to be retried there.
     fn send_notifications(
         &mut self,
-        ctx: &mut EventCtx,
+        ctx: &mut EventCtx<T>,
         notifications: &mut VecDeque<Notification>,
-        data: &mut T,
+        data: &T,
         env: &Env,
     ) {
         let EventCtx {
@@ -821,6 +829,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
             widget_state: &mut self.state,
             is_handled: false,
             is_root: false,
+            updates: ctx.updates,
         };
 
         for _ in 0..notifications.len() {
@@ -860,7 +869,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                     // which case we need to change lifecycle event to
                     // WidgetAdded or in case we were already created
                     // we just pass this event down
-                    if self.old_data.is_none() {
+                    if !self.is_initialized() {
                         self.lifecycle(ctx, &LifeCycle::WidgetAdded, data, env);
                         return;
                     } else {
@@ -913,9 +922,10 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 }
             },
             LifeCycle::WidgetAdded => {
-                assert!(self.old_data.is_none());
+                assert!(!self.is_initialized());
 
-                self.old_data = Some(data.clone());
+                // self.old_data = Some(data.clone());
+                self.state.intialized = true;
                 self.env = Some(env.clone());
 
                 true
@@ -975,19 +985,11 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
     /// method.
     ///
     /// [`update`]: trait.Widget.html#tymethod.update
-    pub fn update(&mut self, ctx: &mut UpdateCtx, data: &T, env: &Env) {
+    pub fn update(&mut self, ctx: &mut UpdateCtx, data: &T, update: &T::Diff, env: &Env)
+    where T: Diffable {
         if !self.state.request_update {
-            match (self.old_data.as_ref(), self.env.as_ref()) {
-                (Some(d), Some(e)) if d.same(data) && e.same(env) => return,
-                (Some(_), None) => self.env = Some(env.clone()),
-                (None, _) => {
-                    debug_panic!(
-                        "{:?} is receiving an update without having first received WidgetAdded.",
-                        self.id()
-                    );
-                    return;
-                }
-                (Some(_), Some(_)) => {}
+            if self.env.is_none() {
+                self.env = Some(env.clone())
             }
         }
 
@@ -1001,8 +1003,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
         };
 
         self.inner
-            .update(&mut child_ctx, self.old_data.as_ref().unwrap(), data, env);
-        self.old_data = Some(data.clone());
+            .update(&mut child_ctx,data, update, env);
         self.env = Some(env.clone());
 
         self.state.request_update = false;
@@ -1010,7 +1011,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
     }
 }
 
-impl<T, W: Widget<T> + 'static> WidgetPod<T, W> {
+impl<T: Diffable, W: Widget<T> + 'static> WidgetPod<T, W> {
     /// Box the contained widget.
     ///
     /// Convert a `WidgetPod` containing a widget of a specific concrete type
@@ -1026,6 +1027,7 @@ impl WidgetState {
             id,
             origin: Point::ORIGIN,
             size: size.unwrap_or_default(),
+            intialized: false,
             is_expecting_set_origin_call: true,
             paint_insets: Insets::ZERO,
             invalid: Region::EMPTY,

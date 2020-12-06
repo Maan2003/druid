@@ -17,7 +17,7 @@
 use std::any::{Any, TypeId};
 
 use crate::{
-    commands, core::CommandQueue, Command, Data, Env, Event, Handled, MenuDesc, SingleUse, Target,
+    commands, core::CommandQueue, Command, Diffable, Env, Event, Handled, SingleUse, Target,
     WindowDesc, WindowId,
 };
 
@@ -49,7 +49,7 @@ impl<'a> DelegateCtx<'a> {
     /// `T` must be the application's root `Data` type (the type provided to [`AppLauncher::launch`]).
     ///
     /// [`AppLauncher::launch`]: struct.AppLauncher.html#method.launch
-    pub fn new_window<T: Any>(&mut self, desc: WindowDesc<T>) {
+    pub fn new_window<T: Diffable + Any>(&mut self, desc: WindowDesc<T>) {
         if self.app_data_type == TypeId::of::<T>() {
             self.submit_command(
                 commands::NEW_WINDOW
@@ -61,21 +61,22 @@ impl<'a> DelegateCtx<'a> {
         }
     }
 
-    /// Set the window's menu.
-    /// `T` must be the application's root `Data` type (the type provided to [`AppLauncher::launch`]).
-    ///
-    /// [`AppLauncher::launch`]: struct.AppLauncher.html#method.launch
-    pub fn set_menu<T: Any>(&mut self, menu: MenuDesc<T>, window: WindowId) {
-        if self.app_data_type == TypeId::of::<T>() {
-            self.submit_command(
-                commands::SET_MENU
-                    .with(Box::new(menu))
-                    .to(Target::Window(window)),
-            );
-        } else {
-            debug_panic!("DelegateCtx::set_menu<T> - T must match the application data type.");
-        }
-    }
+    // TODO: enable menus
+    // /// Set the window's menu.
+    // /// `T` must be the application's root `Data` type (the type provided to [`AppLauncher::launch`]).
+    // ///
+    // /// [`AppLauncher::launch`]: struct.AppLauncher.html#method.launch
+    // pub fn set_menu<T: Any>(&mut self, menu: MenuDesc<T>, window: WindowId) {
+    //     if self.app_data_type == TypeId::of::<T>() {
+    //         self.submit_command(
+    //             commands::SET_MENU
+    //                 .with(Box::new(menu))
+    //                 .to(Target::Window(window)),
+    //         );
+    //     } else {
+    //         debug_panic!("DelegateCtx::set_menu<T> - T must match the application data type.");
+    //     }
+    // }
 }
 
 /// A type that provides hooks for handling and modifying top-level events.
@@ -87,7 +88,7 @@ impl<'a> DelegateCtx<'a> {
 ///
 /// You customize the `AppDelegate` by implementing its methods on your own type.
 #[allow(unused)]
-pub trait AppDelegate<T: Data> {
+pub trait AppDelegate<T: Diffable> {
     /// The `AppDelegate`'s event handler. This function receives all
     /// non-command events, before they are passed down the tree.
     ///

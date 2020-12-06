@@ -27,27 +27,28 @@ use crate::app::PendingWindow;
 use crate::contexts::ContextState;
 use crate::core::{CommandQueue, FocusChange, WidgetState};
 use crate::util::ExtendDrain;
-use crate::widget::LabelText;
+///use crate::widget::LabelText;
 use crate::win_handler::RUN_COMMANDS_TOKEN;
 use crate::{
     BoxConstraints, Command, Data, Env, Event, EventCtx, ExtEventSink, Handled, InternalEvent,
-    InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, MenuDesc, PaintCtx, Point, Size,
+    InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Size,
     TimerToken, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
+use crate::Diffable;
 
 /// A unique identifier for a window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WindowId(u64);
 
 /// Per-window state not owned by user code.
-pub struct Window<T> {
+pub struct Window<T: Diffable> {
     pub(crate) id: WindowId,
     pub(crate) root: WidgetPod<T, Box<dyn Widget<T>>>,
-    pub(crate) title: LabelText<T>,
+    // pub(crate) title: String,
     size: Size,
     invalid: Region,
-    pub(crate) menu: Option<MenuDesc<T>>,
-    pub(crate) context_menu: Option<MenuDesc<T>>,
+    // pub(crate) menu: Option<MenuDesc<T>>,
+//    pub(crate) context_menu: Option<MenuDesc<T>>,
     // This will be `Some` whenever the most recently displayed frame was an animation frame.
     pub(crate) last_anim: Option<Instant>,
     pub(crate) last_mouse_pos: Option<Point>,
@@ -58,7 +59,7 @@ pub struct Window<T> {
     // delegate?
 }
 
-impl<T> Window<T> {
+impl<T:Diffable> Window<T> {
     pub(crate) fn new(
         id: WindowId,
         handle: WindowHandle,
@@ -70,9 +71,9 @@ impl<T> Window<T> {
             root: WidgetPod::new(pending.root),
             size: Size::ZERO,
             invalid: Region::EMPTY,
-            title: pending.title,
-            menu: pending.menu,
-            context_menu: None,
+    //        title: pending.title,
+       //     menu: pending.menu,
+        //    context_menu: None,
             last_anim: None,
             last_mouse_pos: None,
             focus: None,
@@ -83,7 +84,7 @@ impl<T> Window<T> {
     }
 }
 
-impl<T: Data> Window<T> {
+impl<T: Diffable + 'static> Window<T> {
     /// `true` iff any child requested an animation frame since the last `AnimFrame` event.
     pub(crate) fn wants_animation_frame(&self) -> bool {
         self.root.state().request_anim
@@ -101,23 +102,23 @@ impl<T: Data> Window<T> {
         widget_id == self.root.id() || self.root.state().children.may_contain(&widget_id)
     }
 
-    pub(crate) fn set_menu(&mut self, mut menu: MenuDesc<T>, data: &T, env: &Env) {
-        let platform_menu = menu.build_window_menu(data, env);
-        self.handle.set_menu(platform_menu);
-        self.menu = Some(menu);
-    }
+    // pub(crate) fn set_menu(&mut self, mut menu: MenuDesc<T>, data: &T, env: &Env) {
+    //     let platform_menu = menu.build_window_menu(data, env);
+    //     self.handle.set_menu(platform_menu);
+    //     self.menu = Some(menu);
+    // }
 
-    pub(crate) fn show_context_menu(
-        &mut self,
-        mut menu: MenuDesc<T>,
-        point: Point,
-        data: &T,
-        env: &Env,
-    ) {
-        let platform_menu = menu.build_popup_menu(data, env);
-        self.handle.show_context_menu(platform_menu, point);
-        self.context_menu = Some(menu);
-    }
+    // pub(crate) fn show_context_menu(
+    //     &mut self,
+    //     mut menu: MenuDesc<T>,
+    //     point: Point,
+    //     data: &T,
+    //     env: &Env,
+    // ) {
+    //     let platform_menu = menu.build_popup_menu(data, env);
+    //     self.handle.show_context_menu(platform_menu, point);
+    //     self.context_menu = Some(menu);
+    // }
 
     /// On macos we need to update the global application menu to be the menu
     /// for the current window.
@@ -172,7 +173,8 @@ impl<T: Data> Window<T> {
         &mut self,
         queue: &mut CommandQueue,
         event: Event,
-        data: &mut T,
+        data: &T,
+        updates: &mut VecDeque<T::Diff>,
         env: &Env,
     ) -> Handled {
         match &event {
@@ -217,6 +219,7 @@ impl<T: Data> Window<T> {
                 widget_state: &mut widget_state,
                 is_handled: false,
                 is_root: true,
+                updates,
             };
 
             self.root.event(&mut ctx, &event, data, env);
@@ -276,12 +279,13 @@ impl<T: Data> Window<T> {
         self.post_event_processing(&mut widget_state, queue, data, env, process_commands);
     }
 
-    pub(crate) fn update(&mut self, queue: &mut CommandQueue, data: &T, env: &Env) {
+    pub(crate) fn update(&mut self, queue: &mut CommandQueue, data: &T, diff: &T::Diff, env: &Env) {
         self.update_title(data, env);
 
         let mut widget_state = WidgetState::new(self.root.id(), Some(self.size));
         let mut state =
             ContextState::new::<T>(queue, &self.ext_handle, &self.handle, self.id, self.focus);
+
         let mut update_ctx = UpdateCtx {
             widget_state: &mut widget_state,
             state: &mut state,
@@ -289,7 +293,7 @@ impl<T: Data> Window<T> {
             env,
         };
 
-        self.root.update(&mut update_ctx, data, env);
+        self.root.update(&mut update_ctx, data, diff, env);
         if let Some(cursor) = &widget_state.cursor {
             self.handle.set_cursor(cursor);
         }
@@ -321,7 +325,7 @@ impl<T: Data> Window<T> {
     }
 
     /// Get ready for painting, by doing layout and sending an `AnimFrame` event.
-    pub(crate) fn prepare_paint(&mut self, queue: &mut CommandQueue, data: &mut T, env: &Env) {
+    pub(crate) fn prepare_paint(&mut self, queue: &mut CommandQueue, data: &T, updates: &mut VecDeque<T::Diff>, env: &Env) {
         let now = Instant::now();
         // TODO: this calculation uses wall-clock time of the paint call, which
         // potentially has jitter.
@@ -331,7 +335,7 @@ impl<T: Data> Window<T> {
         let elapsed_ns = last.map(|t| now.duration_since(t).as_nanos()).unwrap_or(0) as u64;
 
         if self.wants_animation_frame() {
-            self.event(queue, Event::AnimFrame(elapsed_ns), data, env);
+            self.event(queue, Event::AnimFrame(elapsed_ns), data, updates, env);
             self.last_anim = Some(now);
         }
     }
@@ -418,16 +422,17 @@ impl<T: Data> Window<T> {
     }
 
     pub(crate) fn update_title(&mut self, data: &T, env: &Env) {
-        if self.title.resolve(data, env) {
-            self.handle.set_title(&self.title.display_text());
-        }
+//        if self.title.resolve(data, env) {
+//            self.handle.set_title(&self.title.display_text());
+//        }
     }
 
     pub(crate) fn get_menu_cmd(&self, cmd_id: u32) -> Option<Command> {
-        self.context_menu
-            .as_ref()
-            .and_then(|m| m.command_for_id(cmd_id))
-            .or_else(|| self.menu.as_ref().and_then(|m| m.command_for_id(cmd_id)))
+        // self.context_menu
+        //     .as_ref()
+        //     .and_then(|m| m.command_for_id(cmd_id))
+        //     .or_else(|| self.menu.as_ref().and_then(|m| m.command_for_id(cmd_id)))
+        None
     }
 
     fn widget_for_focus_request(&self, focus: FocusChange) -> Option<WidgetId> {

@@ -89,7 +89,9 @@ pub struct WidgetId(NonZeroU64);
 /// [`Data`]: trait.Data.html
 /// [`Env`]: struct.Env.html
 /// [`WidgetPod`]: struct.WidgetPod.html
-pub trait Widget<T> {
+pub trait Widget<T>
+where T: Diffable 
+{
     /// Handle an event.
     ///
     /// A number of different events (in the [`Event`] enum) are handled in this
@@ -100,7 +102,7 @@ pub trait Widget<T> {
     /// [`Event`]: enum.Event.html
     /// [`EventCtx`]: struct.EventCtx.html
     /// [`Command`]: struct.Command.html
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env);
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env);
 
     /// Handle a life cycle notification.
     ///
@@ -145,7 +147,7 @@ pub trait Widget<T> {
     /// [`request_layout`]: struct.UpdateCtx.html#method.request_layout
     /// [`layout`]: #tymethod.layout
     /// [`paint`]: #tymethod.paint
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env);
+    fn update(&mut self, ctx: &mut UpdateCtx, data: &T, update_iter: &T::Diff, env: &Env);
 
     /// Compute layout.
     ///
@@ -234,8 +236,8 @@ impl WidgetId {
     }
 }
 
-impl<T> Widget<T> for Box<dyn Widget<T>> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable> Widget<T> for Box<dyn Widget<T>> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         self.deref_mut().event(ctx, event, data, env)
     }
 
@@ -243,8 +245,8 @@ impl<T> Widget<T> for Box<dyn Widget<T>> {
         self.deref_mut().lifecycle(ctx, event, data, env);
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
-        self.deref_mut().update(ctx, old_data, data, env);
+    fn update(&mut self, ctx: &mut UpdateCtx, data: &T, update: &T::Diff, env: &Env) {
+        self.deref_mut().update(ctx, data, update, env);
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {

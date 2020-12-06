@@ -17,10 +17,12 @@
 use crate::ext_event::{ExtEventHost, ExtEventSink};
 use crate::kurbo::{Point, Size};
 use crate::shell::{Application, Error as PlatformError, WindowBuilder, WindowHandle, WindowLevel};
-use crate::widget::LabelText;
+// use crate::widget::LabelText;
 use crate::win_handler::{AppHandler, AppState};
 use crate::window::WindowId;
-use crate::{AppDelegate, Data, Env, LocalizedString, MenuDesc, Widget};
+use crate::{AppDelegate, Data, Env, LocalizedString, Widget};
+
+use crate::diffable::Diffable;
 
 use druid_shell::WindowState;
 
@@ -30,7 +32,7 @@ const WINDOW_MIN_SIZE: Size = Size::new(400., 400.);
 type EnvSetupFn<T> = dyn FnOnce(&mut Env, &T);
 
 /// Handles initial setup of an application, and starts the runloop.
-pub struct AppLauncher<T> {
+pub struct AppLauncher<T: Diffable> {
     windows: Vec<WindowDesc<T>>,
     env_setup: Option<Box<EnvSetupFn<T>>>,
     delegate: Option<Box<dyn AppDelegate<T>>>,
@@ -50,7 +52,7 @@ pub struct WindowConfig {
 }
 
 /// A description of a window to be instantiated.
-pub struct WindowDesc<T> {
+pub struct WindowDesc<T: Diffable> {
     pub(crate) pending: PendingWindow<T>,
     pub(crate) config: WindowConfig,
     /// The `WindowId` that will be assigned to this window.
@@ -62,13 +64,13 @@ pub struct WindowDesc<T> {
 
 /// The parts of a window, pending construction, that are dependent on top level app state.
 /// This includes the boxed root widget, as well as other window properties such as the title.
-pub struct PendingWindow<T> {
+pub struct PendingWindow<T: Diffable> {
     pub(crate) root: Box<dyn Widget<T>>,
-    pub(crate) title: LabelText<T>,
-    pub(crate) menu: Option<MenuDesc<T>>,
+//    pub(crate) title: LabelText<T>,
+    //pub(crate) menu: Option<MenuDesc<T>>,
 }
 
-impl<T: Data> PendingWindow<T> {
+impl<T: Diffable> PendingWindow<T> {
     /// Create a pending window from any widget.
     pub fn new<W, F>(root: F) -> PendingWindow<T>
     where
@@ -78,8 +80,8 @@ impl<T: Data> PendingWindow<T> {
         // This just makes our API slightly cleaner; callers don't need to explicitly box.
         PendingWindow {
             root: Box::new(root()),
-            title: LocalizedString::new("app-name").into(),
-            menu: MenuDesc::platform_default(),
+       //     title: LocalizedString::new("app-name").into(),
+    //        menu: MenuDesc::platform_default(),
         }
     }
 
@@ -89,19 +91,14 @@ impl<T: Data> PendingWindow<T> {
     ///
     /// [`LabelText`]: widget/enum.LocalizedString.html
     /// [`LocalizedString`]: struct.LocalizedString.html
-    pub fn title(mut self, title: impl Into<LabelText<T>>) -> Self {
-        self.title = title.into();
+    pub fn title(mut self, title: String) -> Self {
+        // self.title = title.into();
         self
     }
 
-    /// Set the menu for this window.
-    pub fn menu(mut self, menu: MenuDesc<T>) -> Self {
-        self.menu = Some(menu);
-        self
-    }
 }
 
-impl<T: Data> AppLauncher<T> {
+impl<T: Diffable + 'static> AppLauncher<T> {
     /// Create a new `AppLauncher` with the provided window.
     pub fn with_window(window: WindowDesc<T>) -> Self {
         AppLauncher {
@@ -334,7 +331,7 @@ impl WindowConfig {
     }
 }
 
-impl<T: Data> WindowDesc<T> {
+impl<T: Diffable> WindowDesc<T> {
     /// Create a new `WindowDesc`, taking a function that will generate the root
     /// [`Widget`] for this window.
     ///
@@ -359,16 +356,16 @@ impl<T: Data> WindowDesc<T> {
     ///
     /// [`LabelText`]: widget/enum.LocalizedString.html
     /// [`LocalizedString`]: struct.LocalizedString.html
-    pub fn title(mut self, title: impl Into<LabelText<T>>) -> Self {
+    pub fn title(mut self, title: String) -> Self {
         self.pending = self.pending.title(title);
         self
     }
 
-    /// Set the menu for this window.
-    pub fn menu(mut self, menu: MenuDesc<T>) -> Self {
-        self.pending = self.pending.menu(menu);
-        self
-    }
+    // /// Set the menu for this window.
+//    pub fn menu(mut self, menu: MenuDesc<T>) -> Self {
+//        self.pending = self.pending.menu(menu);
+//        self
+//    }
 
     /// Set the window's initial drawing area size in [display points].
     ///

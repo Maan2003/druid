@@ -29,15 +29,16 @@ use crate::shell::{
 use crate::app_delegate::{AppDelegate, DelegateCtx};
 use crate::core::CommandQueue;
 use crate::ext_event::{ExtEventHost, ExtEventSink};
-use crate::menu::ContextMenu;
+// use crate::menu::ContextMenu;
 use crate::window::Window;
 use crate::{
-    Command, Data, Env, Event, Handled, InternalEvent, KeyEvent, MenuDesc, PlatformError, Target,
+    Command, Data, Env, Event, Handled, InternalEvent, KeyEvent, PlatformError, Target,
     TimerToken, WindowDesc, WindowId,
 };
 
 use crate::app::{PendingWindow, WindowConfig};
 use crate::command::sys as sys_cmd;
+use crate::diffable::Diffable;
 use druid_shell::WindowBuilder;
 
 pub(crate) const RUN_COMMANDS_TOKEN: IdleToken = IdleToken::new(1);
@@ -51,7 +52,7 @@ pub(crate) const EXT_EVENT_IDLE_TOKEN: IdleToken = IdleToken::new(2);
 ///
 /// This is something of an internal detail and possibly we don't want to surface
 /// it publicly.
-pub struct DruidHandler<T> {
+pub struct DruidHandler<T: Diffable> {
     /// The shared app state.
     app_state: AppState<T>,
     /// The id for the current window.
@@ -64,37 +65,43 @@ pub struct DruidHandler<T> {
 /// used to handle events that are not associated with a window.
 ///
 /// Currently, this means only menu items on macOS when no window is open.
-pub(crate) struct AppHandler<T> {
+pub(crate) struct AppHandler<T: Diffable> {
     app_state: AppState<T>,
 }
 
 /// State shared by all windows in the UI.
-#[derive(Clone)]
-pub(crate) struct AppState<T> {
+pub(crate) struct AppState<T: Diffable> {
     inner: Rc<RefCell<Inner<T>>>,
 }
 
-struct Inner<T> {
+impl<T: Diffable> Clone for AppState<T> {
+    fn clone(&self) -> Self {
+        Self { inner: self.inner.clone() }
+    }
+}
+
+struct Inner<T: Diffable> {
     app: Application,
     delegate: Option<Box<dyn AppDelegate<T>>>,
     command_queue: CommandQueue,
     file_dialogs: HashMap<FileDialogToken, WindowId>,
     ext_event_host: ExtEventHost,
     windows: Windows<T>,
+    updates: VecDeque<T::Diff>,
     /// the application-level menu, only set on macos and only if there
     /// are no open windows.
-    root_menu: Option<MenuDesc<T>>,
+//    root_menu: Option<MenuDesc<T>>,
     pub(crate) env: Env,
     pub(crate) data: T,
 }
 
 /// All active windows.
-struct Windows<T> {
+struct Windows<T: Diffable> {
     pending: HashMap<WindowId, PendingWindow<T>>,
     windows: HashMap<WindowId, Window<T>>,
 }
 
-impl<T> Windows<T> {
+impl<T: Diffable> Windows<T> {
     fn connect(&mut self, id: WindowId, handle: WindowHandle, ext_handle: ExtEventSink) {
         if let Some(pending) = self.pending.remove(&id) {
             let win = Window::new(id, handle, pending, ext_handle);
@@ -129,13 +136,13 @@ impl<T> Windows<T> {
     }
 }
 
-impl<T> AppHandler<T> {
+impl<T: Diffable> AppHandler<T> {
     pub(crate) fn new(app_state: AppState<T>) -> Self {
         Self { app_state }
     }
 }
 
-impl<T> AppState<T> {
+impl<T: Diffable> AppState<T> {
     pub(crate) fn new(
         app: Application,
         data: T,
@@ -147,8 +154,9 @@ impl<T> AppState<T> {
             app,
             delegate,
             command_queue: VecDeque::new(),
+            updates: VecDeque::new(),
             file_dialogs: HashMap::new(),
-            root_menu: None,
+            // root_menu: None,
             ext_event_host,
             data,
             env,
@@ -163,15 +171,16 @@ impl<T> AppState<T> {
     }
 }
 
-impl<T: Data> Inner<T> {
+impl<T: Diffable + 'static> Inner<T> {
     fn get_menu_cmd(&self, window_id: Option<WindowId>, cmd_id: u32) -> Option<Command> {
-        match window_id {
-            Some(id) => self.windows.get(id).and_then(|w| w.get_menu_cmd(cmd_id)),
-            None => self
-                .root_menu
-                .as_ref()
-                .and_then(|m| m.command_for_id(cmd_id)),
-        }
+        // match window_id {
+        //     Some(id) => self.windows.get(id).and_then(|w| w.get_menu_cmd(cmd_id)),
+        //     None => self
+        //         .root_menu
+        //         .as_ref()
+        //         .and_then(|m| m.command_for_id(cmd_id)),
+        // }
+        None
     }
 
     fn append_command(&mut self, cmd: Command) {
@@ -239,7 +248,7 @@ impl<T: Data> Inner<T> {
         if let Some(mut win) = self.windows.remove(window_id) {
             if self.windows.windows.is_empty() {
                 // on mac we need to keep the menu around
-                self.root_menu = win.menu.take();
+                // self.root_menu = win.menu.take();
                 // If there are even no pending windows, we quit the run loop.
                 if self.windows.count() == 0 {
                     #[cfg(any(target_os = "windows", feature = "x11"))]
@@ -307,7 +316,7 @@ impl<T: Data> Inner<T> {
 
     fn prepare_paint(&mut self, window_id: WindowId) {
         if let Some(win) = self.windows.get_mut(window_id) {
-            win.prepare_paint(&mut self.command_queue, &mut self.data, &self.env);
+            win.prepare_paint(&mut self.command_queue, &mut self.data, &mut self.updates, &self.env);
         }
         self.do_update();
     }
@@ -344,7 +353,7 @@ impl<T: Data> Inner<T> {
                 }
                 if let Some(w) = self.windows.get_mut(id) {
                     let event = Event::Command(cmd);
-                    return w.event(&mut self.command_queue, event, &mut self.data, &self.env);
+                    return w.event(&mut self.command_queue, event, &mut self.data, &mut self.updates, &self.env);
                 }
             }
             // in this case we send it to every window that might contain
@@ -352,7 +361,7 @@ impl<T: Data> Inner<T> {
             Target::Widget(id) => {
                 for w in self.windows.iter_mut().filter(|w| w.may_contain_widget(id)) {
                     let event = Event::Internal(InternalEvent::TargetedCommand(cmd.clone()));
-                    if w.event(&mut self.command_queue, event, &mut self.data, &self.env)
+                    if w.event(&mut self.command_queue, event, &mut self.data, &mut self.updates, &self.env)
                         .is_handled()
                     {
                         return Handled::Yes;
@@ -362,7 +371,7 @@ impl<T: Data> Inner<T> {
             Target::Global => {
                 for w in self.windows.iter_mut() {
                     let event = Event::Command(cmd.clone());
-                    if w.event(&mut self.command_queue, event, &mut self.data, &self.env)
+                    if w.event(&mut self.command_queue, event, &mut self.data, &mut self.updates, &self.env)
                         .is_handled()
                     {
                         return Handled::Yes;
@@ -391,48 +400,52 @@ impl<T: Data> Inner<T> {
         };
 
         if let Some(win) = self.windows.get_mut(source_id) {
-            win.event(&mut self.command_queue, event, &mut self.data, &self.env)
+            win.event(&mut self.command_queue, event, &self.data, &mut self.updates, &self.env)
         } else {
             Handled::No
         }
     }
 
     fn set_menu(&mut self, window_id: WindowId, cmd: &Command) {
-        if let Some(win) = self.windows.get_mut(window_id) {
-            match cmd
-                .get_unchecked(sys_cmd::SET_MENU)
-                .downcast_ref::<MenuDesc<T>>()
-            {
-                Some(menu) => win.set_menu(menu.clone(), &self.data, &self.env),
-                None => panic!(
-                    "{} command must carry a MenuDesc<application state>.",
-                    sys_cmd::SET_MENU
-                ),
-            }
-        }
+        // if let Some(win) = self.windows.get_mut(window_id) {
+        //     match cmd
+        //         .get_unchecked(sys_cmd::SET_MENU)
+        //         .downcast_ref::<MenuDesc<T>>()
+        //     {
+        //         Some(menu) => win.set_menu(menu.clone(), &self.data, &self.env),
+        //         None => panic!(
+        //             "{} command must carry a MenuDesc<application state>.",
+        //             sys_cmd::SET_MENU
+        //         ),
+        //     }
+        // }
     }
 
     fn show_context_menu(&mut self, window_id: WindowId, cmd: &Command) {
-        if let Some(win) = self.windows.get_mut(window_id) {
-            match cmd
-                .get_unchecked(sys_cmd::SHOW_CONTEXT_MENU)
-                .downcast_ref::<ContextMenu<T>>()
-            {
-                Some(ContextMenu { menu, location }) => {
-                    win.show_context_menu(menu.to_owned(), *location, &self.data, &self.env)
-                }
-                None => panic!(
-                    "{} command must carry a ContextMenu<application state>.",
-                    sys_cmd::SHOW_CONTEXT_MENU
-                ),
-            }
-        }
+        // if let Some(win) = self.windows.get_mut(window_id) {
+        //     match cmd
+        //         .get_unchecked(sys_cmd::SHOW_CONTEXT_MENU)
+        //         .downcast_ref::<ContextMenu<T>>()
+        //     {
+        //         Some(ContextMenu { menu, location }) => {
+        //             win.show_context_menu(menu.to_owned(), *location, &self.data, &self.env)
+        //         }
+        //         None => panic!(
+        //             "{} command must carry a ContextMenu<application state>.",
+        //             sys_cmd::SHOW_CONTEXT_MENU
+        //         ),
+        //     }
+        // }
     }
 
     fn do_update(&mut self) {
         // we send `update` to all windows, not just the active one:
-        for window in self.windows.iter_mut() {
-            window.update(&mut self.command_queue, &self.data, &self.env);
+        for update in self.updates.drain(..) {
+            for window in self.windows.iter_mut() {
+                window.update(&mut self.command_queue, &self.data, &update, &self.env);
+            }
+            self.data.apply_diff(update);
+
         }
         self.invalidate_and_finalize();
     }
@@ -457,7 +470,7 @@ impl<T: Data> Inner<T> {
     fn window_got_focus(&mut self, _: WindowId) {}
 }
 
-impl<T: Data> DruidHandler<T> {
+impl<T: Diffable> DruidHandler<T> {
     /// Note: the root widget doesn't go in here, because it gets added to the
     /// app state.
     pub(crate) fn new_shared(app_state: AppState<T>, window_id: WindowId) -> DruidHandler<T> {
@@ -468,10 +481,10 @@ impl<T: Data> DruidHandler<T> {
     }
 }
 
-impl<T: Data> AppState<T> {
-    pub(crate) fn data(&self) -> T {
-        self.inner.borrow().data.clone()
-    }
+impl<T: Diffable> AppState<T> {
+    // pub(crate) fn data(&self) -> T {
+    //     self.inner.borrow().data.clone()
+    // }
 
     pub(crate) fn env(&self) -> Env {
         self.inner.borrow().env.clone()
@@ -701,19 +714,19 @@ impl<T: Data> AppState<T> {
         let mut builder = WindowBuilder::new(self.app());
         config.apply_to_builder(&mut builder);
 
-        let data = self.data();
-        let env = self.env();
+        // let data = self.data();
+        // let env = self.env();
 
-        pending.title.resolve(&data, &env);
-        builder.set_title(pending.title.display_text().to_string());
+        // pending.title.resolve(&data, &env);
+        builder.set_title("");
 
-        let platform_menu = pending
-            .menu
-            .as_mut()
-            .map(|m| m.build_window_menu(&data, &env));
-        if let Some(menu) = platform_menu {
-            builder.set_menu(menu);
-        }
+        // let platform_menu = pending
+        //     .menu
+        //     .as_mut()
+        //     .map(|m| m.build_window_menu(&data, &env));
+        // if let Some(menu) = platform_menu {
+        //     builder.set_menu(menu);
+        // }
 
         let handler = DruidHandler::new_shared((*self).clone(), id);
         builder.set_handler(Box::new(handler));
@@ -723,13 +736,13 @@ impl<T: Data> AppState<T> {
     }
 }
 
-impl<T: Data> crate::shell::AppHandler for AppHandler<T> {
+impl<T: Diffable> crate::shell::AppHandler for AppHandler<T> {
     fn command(&mut self, id: u32) {
         self.app_state.handle_system_cmd(id, None)
     }
 }
 
-impl<T: Data> WinHandler for DruidHandler<T> {
+impl<T: Diffable> WinHandler for DruidHandler<T> {
     fn connect(&mut self, handle: &WindowHandle) {
         self.app_state
             .connect_window(self.window_id, handle.clone());
@@ -857,7 +870,7 @@ impl<T: Data> WinHandler for DruidHandler<T> {
     }
 }
 
-impl<T> Default for Windows<T> {
+impl<T: Diffable> Default for Windows<T> {
     fn default() -> Self {
         Windows {
             windows: HashMap::new(),

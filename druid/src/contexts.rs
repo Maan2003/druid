@@ -23,10 +23,11 @@ use std::{
 
 use crate::core::{CommandQueue, CursorChange, FocusChange, WidgetState};
 use crate::env::KeyLike;
+use crate::Diffable;
 use crate::piet::{Piet, PietText, RenderContext};
 use crate::shell::Region;
 use crate::{
-    commands, Affine, Command, ContextMenu, Cursor, Env, ExtEventSink, Insets, MenuDesc,
+    commands, Affine, Command, Cursor, Env, ExtEventSink, Insets, 
     Notification, Point, Rect, SingleUse, Size, Target, TimerToken, WidgetId, WindowDesc,
     WindowHandle, WindowId,
 };
@@ -36,12 +37,12 @@ use crate::{
 /// There are a lot of methods defined on multiple contexts; this lets us only
 /// have to write them out once.
 macro_rules! impl_context_method {
-    ($ty:ty,  { $($method:item)+ } ) => {
-        impl $ty { $($method)+ }
+    ($(@generics<$gen:ident :$path:path>)? $ty:ty,  { $($method:item)+ } ) => {
+        impl$(<$gen:$path>)? $ty { $($method)+ }
     };
-    ( $ty:ty, $($more:ty),+, { $($method:item)+ } ) => {
-        impl_context_method!($ty, { $($method)+ });
-        impl_context_method!($($more),+, { $($method)+ });
+    ($(@generics<$gen:ident :$path:path>)? $ty:ty, $($(@generics<$more_gen:ident :$more_path:path>)? $more:ty),+, { $($method:item)+ } ) => {
+        impl_context_method!($(@generics<$gen: $path>)? $ty, { $($method)+ });
+        impl_context_method!($($(@generics<$more_gen: $more_path>)? $more),+, { $($method)+ });
     };
 }
 
@@ -63,10 +64,11 @@ pub(crate) struct ContextState<'a> {
 /// in the widget's appearance, to schedule a repaint.
 ///
 /// [`request_paint`]: #method.request_paint
-pub struct EventCtx<'a, 'b> {
+pub struct EventCtx<'a, 'b, T: Diffable> {
     pub(crate) state: &'a mut ContextState<'b>,
     pub(crate) widget_state: &'a mut WidgetState,
     pub(crate) notifications: &'a mut VecDeque<Notification>,
+    pub(crate) updates: &'a mut VecDeque<T::Diff>,
     pub(crate) is_handled: bool,
     pub(crate) is_root: bool,
 }
@@ -138,7 +140,7 @@ pub struct PaintCtx<'a, 'b, 'c> {
 
 // methods on everyone
 impl_context_method!(
-    EventCtx<'_, '_>,
+    @generics<T: Diffable> EventCtx<'_, '_, T>,
     UpdateCtx<'_, '_>,
     LifeCycleCtx<'_, '_>,
     PaintCtx<'_, '_, '_>,
@@ -168,7 +170,7 @@ impl_context_method!(
 
 // methods on everyone but layoutctx
 impl_context_method!(
-    EventCtx<'_, '_>,
+    @generics<T: Diffable> EventCtx<'_, '_, T>,
     UpdateCtx<'_, '_>,
     LifeCycleCtx<'_, '_>,
     PaintCtx<'_, '_, '_>,
@@ -253,7 +255,7 @@ impl_context_method!(
     }
 );
 
-impl_context_method!(EventCtx<'_, '_>, UpdateCtx<'_, '_>, {
+impl_context_method!(@generics<U:Diffable>EventCtx<'_, '_, U>, UpdateCtx<'_, '_>, {
     /// Set the cursor icon.
     ///
     /// This setting will be retained until [`clear_cursor`] is called, but it will only take
@@ -295,7 +297,7 @@ impl_context_method!(EventCtx<'_, '_>, UpdateCtx<'_, '_>, {
 });
 
 // methods on event, update, and lifecycle
-impl_context_method!(EventCtx<'_, '_>, UpdateCtx<'_, '_>, LifeCycleCtx<'_, '_>, {
+impl_context_method!(@generics<U:Diffable> EventCtx<'_, '_, U>, UpdateCtx<'_, '_>, LifeCycleCtx<'_, '_>, {
     /// Request a [`paint`] pass. This is equivalent to calling
     /// [`request_paint_rect`] for the widget's [`paint_rect`].
     ///
@@ -343,18 +345,18 @@ impl_context_method!(EventCtx<'_, '_>, UpdateCtx<'_, '_>, LifeCycleCtx<'_, '_>, 
         self.request_layout();
     }
 
-    /// Set the menu of the window containing the current widget.
-    /// `T` must be the application's root `Data` type (the type provided to [`AppLauncher::launch`]).
-    ///
-    /// [`AppLauncher::launch`]: struct.AppLauncher.html#method.launch
-    pub fn set_menu<T: Any>(&mut self, menu: MenuDesc<T>) {
-        self.state.set_menu(menu);
-    }
+    // /// Set the menu of the window containing the current widget.
+    // /// `T` must be the application's root `Data` type (the type provided to [`AppLauncher::launch`]).
+    // ///
+    // /// [`AppLauncher::launch`]: struct.AppLauncher.html#method.launch
+    // pub fn set_menu<T: Any>(&mut self, menu: MenuDesc<T>) {
+    //     self.state.set_menu(menu);
+    // }
 });
 
 // methods on everyone but paintctx
 impl_context_method!(
-    EventCtx<'_, '_>,
+    @generics<T: Diffable> EventCtx<'_, '_, T>,
     UpdateCtx<'_, '_>,
     LifeCycleCtx<'_, '_>,
     LayoutCtx<'_, '_>,
@@ -392,7 +394,7 @@ impl_context_method!(
     }
 );
 
-impl EventCtx<'_, '_> {
+impl<T: Diffable + 'static>  EventCtx<'_, '_, T> {
     /// Submit a [`Notification`].
     ///
     /// The provided argument can be a [`Selector`] or a [`Command`]; this lets
@@ -429,39 +431,33 @@ impl EventCtx<'_, '_> {
         // TODO: plumb mouse grab through to platform (through druid-shell)
     }
 
+    pub fn send_update(&mut self, diff: T::Diff) {
+        self.updates.push_back(diff);
+    }
+
     /// Create a new window.
     /// `T` must be the application's root `Data` type (the type provided to [`AppLauncher::launch`]).
     ///
     /// [`AppLauncher::launch`]: struct.AppLauncher.html#method.launch
-    pub fn new_window<T: Any>(&mut self, desc: WindowDesc<T>) {
-        if self.state.root_app_data_type == TypeId::of::<T>() {
+    pub fn new_window(&mut self, desc: WindowDesc<T>) {
             self.submit_command(
                 commands::NEW_WINDOW
                     .with(SingleUse::new(Box::new(desc)))
                     .to(Target::Global),
             );
-        } else {
-            debug_panic!("EventCtx::new_window<T> - T must match the application data type.");
-        }
     }
 
-    /// Show the context menu in the window containing the current widget.
-    /// `T` must be the application's root `Data` type (the type provided to [`AppLauncher::launch`]).
-    ///
-    /// [`AppLauncher::launch`]: struct.AppLauncher.html#method.launch
-    pub fn show_context_menu<T: Any>(&mut self, menu: ContextMenu<T>) {
-        if self.state.root_app_data_type == TypeId::of::<T>() {
-            self.submit_command(
-                commands::SHOW_CONTEXT_MENU
-                    .with(Box::new(menu))
-                    .to(Target::Window(self.state.window_id)),
-            );
-        } else {
-            debug_panic!(
-                "EventCtx::show_context_menu<T> - T must match the application data type."
-            );
-        }
-    }
+    // /// Show the context menu in the window containing the current widget.
+    // /// `T` must be the application's root `Data` type (the type provided to [`AppLauncher::launch`]).
+    // ///
+    // /// [`AppLauncher::launch`]: struct.AppLauncher.html#method.launch
+    // pub fn show_context_menu(&mut self, menu: ContextMenu<T>) {
+    //         self.submit_command(
+    //             commands::SHOW_CONTEXT_MENU
+    //                 .with(Box::new(menu))
+    //                 .to(Target::Window(self.state.window_id)),
+    //         );
+    // }
 
     /// Set the event as "handled", which stops its propagation to other
     /// widgets.
@@ -770,17 +766,17 @@ impl<'a> ContextState<'a> {
             .push_back(command.default_to(self.window_id.into()));
     }
 
-    fn set_menu<T: Any>(&mut self, menu: MenuDesc<T>) {
-        if self.root_app_data_type == TypeId::of::<T>() {
-            self.submit_command(
-                commands::SET_MENU
-                    .with(Box::new(menu))
-                    .to(Target::Window(self.window_id)),
-            );
-        } else {
-            debug_panic!("EventCtx::set_menu<T> - T must match the application data type.");
-        }
-    }
+    // fn set_menu<T: Any>(&mut self, menu: MenuDesc<T>) {
+    //     if self.root_app_data_type == TypeId::of::<T>() {
+    //         self.submit_command(
+    //             commands::SET_MENU
+    //                 .with(Box::new(menu))
+    //                 .to(Target::Window(self.window_id)),
+    //         );
+    //     } else {
+    //         debug_panic!("EventCtx::set_menu<T> - T must match the application data type.");
+    //     }
+    // }
 
     fn request_timer(&self, widget_state: &mut WidgetState, deadline: Duration) -> TimerToken {
         let timer_token = self.window.request_timer(deadline);
