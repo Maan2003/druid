@@ -17,12 +17,12 @@
 use super::invalidation::DebugInvalidation;
 use super::{
     Align, BackgroundBrush, Click, Container, Controller, ControllerHost, EnvScope,
-    IdentityWrapper, LensWrap, Padding, Parse, SizedBox, WidgetId,
+    IdentityWrapper, LensWrap, Padding, /*Parse,*/ SizedBox, WidgetId,
 };
-use crate::{Color, Data, Env, EventCtx, Insets, KeyOrValue, Lens, UnitPoint, Widget};
+use crate::{Color, Diffable, Env, EventCtx, Insets, KeyOrValue, Lens, UnitPoint, Widget};
 
 /// A trait that provides extra methods for combining `Widget`s.
-pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
+pub trait WidgetExt<T: Diffable>: Widget<T> + Sized + 'static {
     /// Wrap this widget in a [`Padding`] widget with the given [`Insets`].
     ///
     /// [`Padding`]: widget/struct.Padding.html
@@ -148,7 +148,7 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
     ///
     /// [`EnvScope`]: widget/struct.EnvScope.html
     /// [`Env`]: struct.Env.html
-    fn env_scope(self, f: impl Fn(&mut Env, &T) + 'static) -> EnvScope<T, Self> {
+    fn env_scope(self, f: impl Fn(&mut Env, &T, Option<&T::Diff>) + 'static) -> EnvScope<T, Self> {
         EnvScope::new(f, self)
     }
 
@@ -171,7 +171,7 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
     /// [`LifeCycle::HotChanged`]: enum.LifeCycle.html#variant.HotChanged
     fn on_click(
         self,
-        f: impl Fn(&mut EventCtx, &mut T, &Env) + 'static,
+        f: impl Fn(&mut EventCtx<T>, &T, &Env) + 'static,
     ) -> ControllerHost<Self, Click<T>> {
         ControllerHost::new(self, Click::new(f))
     }
@@ -180,7 +180,7 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
     ///
     /// [`layout`]: trait.Widget.html#tymethod.layout
     fn debug_paint_layout(self) -> EnvScope<T, Self> {
-        EnvScope::new(|env, _| env.set(Env::DEBUG_PAINT, true), self)
+        EnvScope::new(|env, _, _| env.set(Env::DEBUG_PAINT, true), self)
     }
 
     /// Display the `WidgetId`s for this widget and its children, when hot.
@@ -191,7 +191,7 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
     /// These ids may overlap; in this case the id of a child will obscure
     /// the id of its parent.
     fn debug_widget_id(self) -> EnvScope<T, Self> {
-        EnvScope::new(|env, _| env.set(Env::DEBUG_WIDGET_ID, true), self)
+        EnvScope::new(|env, _, _| env.set(Env::DEBUG_WIDGET_ID, true), self)
     }
 
     /// Draw a color-changing rectangle over this widget, allowing you to see the
@@ -207,7 +207,7 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
     ///
     /// [`DEBUG_WIDGET`]: struct.Env.html#associatedconstant.DEBUG_WIDGET
     fn debug_widget(self) -> EnvScope<T, Self> {
-        EnvScope::new(|env, _| env.set(Env::DEBUG_WIDGET, true), self)
+        EnvScope::new(|env, _, _| env.set(Env::DEBUG_WIDGET, true), self)
     }
 
     /// Wrap this widget in a [`LensWrap`] widget for the provided [`Lens`].
@@ -215,17 +215,17 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
     ///
     /// [`LensWrap`]: struct.LensWrap.html
     /// [`Lens`]: trait.Lens.html
-    fn lens<S: Data, L: Lens<S, T>>(self, lens: L) -> LensWrap<S, T, L, Self> {
+    fn lens<S: Diffable, L: Lens<S, T>>(self, lens: L) -> LensWrap<S, T, L, Self> {
         LensWrap::new(self, lens)
     }
 
-    /// Parse a `Widget<String>`'s contents
-    fn parse(self) -> Parse<Self>
-    where
-        Self: Widget<String>,
-    {
-        Parse::new(self)
-    }
+    // /// Parse a `Widget<String>`'s contents
+    // fn parse(self) -> Parse<Self>
+    // where
+    //     Self: Widget<String>,
+    // {
+    //     Parse::new(self)
+    // }
 
     /// Assign the widget a specific [`WidgetId`].
     ///
@@ -246,14 +246,14 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
     }
 }
 
-impl<T: Data, W: Widget<T> + 'static> WidgetExt<T> for W {}
+impl<T: Diffable, W: Widget<T> + 'static> WidgetExt<T> for W {}
 
 // these are 'soft overrides' of methods on WidgetExt; resolution
 // will choose an impl on a type over an impl in a trait for methods with the same
 // name.
 
 #[doc(hidden)]
-impl<T: Data> SizedBox<T> {
+impl<T: Diffable> SizedBox<T> {
     pub fn fix_width(self, width: f64) -> SizedBox<T> {
         self.width(width)
     }
@@ -263,25 +263,25 @@ impl<T: Data> SizedBox<T> {
     }
 }
 
-// if two things are modifying an env one after another, just combine the modifications
-#[doc(hidden)]
-impl<T: Data, W> EnvScope<T, W> {
-    pub fn env_scope(self, f2: impl Fn(&mut Env, &T) + 'static) -> EnvScope<T, W> {
-        let EnvScope { f, child } = self;
-        let new_f = move |env: &mut Env, data: &T| {
-            f(env, data);
-            f2(env, data);
-        };
-        EnvScope {
-            f: Box::new(new_f),
-            child,
-        }
-    }
+// // if two things are modifying an env one after another, just combine the modifications
+// #[doc(hidden)]
+// impl<T: Data, W> EnvScope<T, W> {
+//     pub fn env_scope(self, f2: impl Fn(&mut Env, &T) + 'static) -> EnvScope<T, W> {
+//         let EnvScope { f, child } = self;
+//         let new_f = move |env: &mut Env, data: &T| {
+//             f(env, data);
+//             f2(env, data);
+//         };
+//         EnvScope {
+//             f: Box::new(new_f),
+//             child,
+//         }
+//     }
 
-    pub fn debug_paint_layout(self) -> EnvScope<T, W> {
-        self.env_scope(|env, _| env.set(Env::DEBUG_PAINT, true))
-    }
-}
+//     pub fn debug_paint_layout(self) -> EnvScope<T, W> {
+//         self.env_scope(|env, _| env.set(Env::DEBUG_PAINT, true))
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

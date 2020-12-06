@@ -52,7 +52,7 @@ mod spinner;
 /// mod view_switcher;
 #[allow(clippy::module_inception)]
 mod widget;
-// mod widget_ext;
+mod widget_ext;
 
 pub use self::image::Image;
 pub use align::Align;
@@ -91,7 +91,7 @@ pub use sized_box::SizedBox;
 // #[doc(hidden)]
 pub use widget::{Widget, WidgetId};
 // #[doc(hidden)]
-// pub use widget_ext::WidgetExt;
+pub use widget_ext::WidgetExt;
 
 /// The types required to implement a `Widget`.
 ///
