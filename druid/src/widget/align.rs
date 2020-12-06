@@ -15,17 +15,17 @@
 //! A widget that aligns its child (for example, centering it).
 
 use crate::widget::prelude::*;
-use crate::{Data, Rect, Size, UnitPoint, WidgetPod};
+use crate::{Diffable, Rect, Size, UnitPoint, WidgetPod};
 
 /// A widget that aligns its child.
-pub struct Align<T> {
+pub struct Align<T: Diffable> {
     align: UnitPoint,
     child: WidgetPod<T, Box<dyn Widget<T>>>,
     width_factor: Option<f64>,
     height_factor: Option<f64>,
 }
 
-impl<T> Align<T> {
+impl<T: Diffable> Align<T> {
     /// Create widget with alignment.
     ///
     /// Note that the `align` parameter is specified as a `UnitPoint` in
@@ -76,8 +76,8 @@ impl<T> Align<T> {
     }
 }
 
-impl<T: Data> Widget<T> for Align<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable> Widget<T> for Align<T> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         self.child.event(ctx, event, data, env)
     }
 
@@ -85,8 +85,8 @@ impl<T: Data> Widget<T> for Align<T> {
         self.child.lifecycle(ctx, event, data, env)
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
-        self.child.update(ctx, data, env);
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
+        self.child.update(ctx, old_data, update, env);
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {

@@ -14,7 +14,7 @@
 
 //! Common widgets.
 
-// mod align;
+mod align;
 // mod button;
 // mod checkbox;
 // mod click;
@@ -55,18 +55,18 @@ mod widget;
 // mod widget_ext;
 
 // pub use self::image::Image;
-// pub use align::Align;
+pub use align::Align;
 // pub use button::Button;
 // pub use checkbox::Checkbox;
 // pub use click::Click;
-// pub use clip_box::{ClipBox, Viewport};
-// pub use common::FillStrat;
+pub use clip_box::{ClipBox, Viewport};
+pub use common::FillStrat;
 // pub use container::Container;
-// pub use controller::{Controller, ControllerHost};
+pub use controller::{Controller, ControllerHost};
 // pub use either::Either;
 // pub use env_scope::EnvScope;
 // pub use flex::{Axis, CrossAxisAlignment, Flex, FlexParams, MainAxisAlignment};
-// pub use identity_wrapper::IdentityWrapper;
+pub use identity_wrapper::IdentityWrapper;
 // pub use label::{Label, LabelText, LineBreaking, RawLabel};
 // pub use lens_wrap::LensWrap;
 // pub use list::{List, ListIter};
