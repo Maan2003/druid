@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use crate::kurbo::{Affine, Point, Rect, Size, Vec2};
+use crate::{WidgetPod};
 use crate::widget::prelude::*;
-use crate::{Data, WidgetPod};
 
 /// Represents the size and position of a rectangular "viewport" into a larger area.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -115,14 +115,14 @@ impl Viewport {
 
 /// A widget exposing a rectangular view into its child, which can be used as a building block for
 /// widgets that scroll their child.
-pub struct ClipBox<T, W> {
+pub struct ClipBox<T: Diffable, W> {
     child: WidgetPod<T, W>,
     port: Viewport,
     constrain_horizontal: bool,
     constrain_vertical: bool,
 }
 
-impl<T, W: Widget<T>> ClipBox<T, W> {
+impl<T: Diffable, W: Widget<T>> ClipBox<T, W> {
     /// Creates a new `ClipBox` wrapping `child`.
     pub fn new(child: W) -> Self {
         ClipBox {
@@ -262,8 +262,8 @@ impl<T, W: Widget<T>> ClipBox<T, W> {
     }
 }
 
-impl<T: Data, W: Widget<T>> Widget<T> for ClipBox<T, W> {
-    fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable, W: Widget<T>> Widget<T> for ClipBox<T, W> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, ev: &Event, data: &T, env: &Env) {
         let viewport = ctx.size().to_rect();
         let force_event = self.child.is_hot() || self.child.is_active();
         if let Some(child_event) =
@@ -277,8 +277,8 @@ impl<T: Data, W: Widget<T>> Widget<T> for ClipBox<T, W> {
         self.child.lifecycle(ctx, ev, data, env);
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
-        self.child.update(ctx, data, env);
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
+        self.child.update(ctx, old_data, update, env);
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {

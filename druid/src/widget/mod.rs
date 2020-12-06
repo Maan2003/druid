@@ -18,7 +18,7 @@
 // mod button;
 // mod checkbox;
 // mod click;
-// mod clip_box;
+mod clip_box;
 mod common;
 // mod container;
 mod controller;
