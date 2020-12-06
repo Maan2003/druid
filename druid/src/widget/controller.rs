@@ -59,11 +59,11 @@ use crate::widget::prelude::*;
 /// [`TextBox`]: struct.TextBox.html
 /// [`ControllerHost`]: struct.ControllerHost.html
 /// [`WidgetExt::controller`]: ../trait.WidgetExt.html#tymethod.controller
-pub trait Controller<T, W: Widget<T>> {
+pub trait Controller<T: Diffable, W: Widget<T>> {
     /// Analogous to [`Widget::event`].
     ///
     /// [`Widget::event`]: ../trait.Widget.html#tymethod.event
-    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, child: &mut W, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         child.event(ctx, event, data, env)
     }
 
@@ -84,8 +84,8 @@ pub trait Controller<T, W: Widget<T>> {
     /// Analogous to [`Widget::update`].
     ///
     /// [`Widget::update`]: ../trait.Widget.html#tymethod.update
-    fn update(&mut self, child: &mut W, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
-        child.update(ctx, old_data, data, env)
+    fn update(&mut self, child: &mut W, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
+        child.update(ctx, old_data, update, env)
     }
 }
 
@@ -105,8 +105,8 @@ impl<W, C> ControllerHost<W, C> {
     }
 }
 
-impl<T, W: Widget<T>, C: Controller<T, W>> Widget<T> for ControllerHost<W, C> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable, W: Widget<T>, C: Controller<T, W>> Widget<T> for ControllerHost<W, C> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         self.controller
             .event(&mut self.widget, ctx, event, data, env)
     }
@@ -116,9 +116,9 @@ impl<T, W: Widget<T>, C: Controller<T, W>> Widget<T> for ControllerHost<W, C> {
             .lifecycle(&mut self.widget, ctx, event, data, env)
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
         self.controller
-            .update(&mut self.widget, ctx, old_data, data, env)
+            .update(&mut self.widget, ctx, old_data, update, env)
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {

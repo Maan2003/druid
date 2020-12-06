@@ -21,7 +21,7 @@
 // mod clip_box;
 // mod common;
 // mod container;
-// mod controller;
+mod controller;
 // mod either;
 // mod env_scope;
 // mod flex;
