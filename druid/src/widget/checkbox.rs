@@ -39,7 +39,7 @@ impl Checkbox {
 }
 
 impl Widget<bool> for Checkbox {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut bool, _env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx<bool>, event: &Event, data: &bool, _env: &Env) {
         match event {
             Event::MouseDown(_) => {
                 ctx.set_active(true);
@@ -49,11 +49,8 @@ impl Widget<bool> for Checkbox {
                 if ctx.is_active() {
                     ctx.set_active(false);
                     if ctx.is_hot() {
-                        if *data {
-                            *data = false;
-                        } else {
-                            *data = true;
-                        }
+                        let diff = <bool as Diffable>::Diff::Set(!*data);
+                        ctx.send_update(diff);
                     }
                     ctx.request_paint();
                 }
@@ -69,8 +66,8 @@ impl Widget<bool> for Checkbox {
         }
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &bool, data: &bool, env: &Env) {
-        self.child_label.update(ctx, old_data, data, env);
+    fn update(&mut self, ctx: &mut UpdateCtx, data: &bool, update: &<bool as Diffable>::Diff, env: &Env) {
+        self.child_label.update(ctx, data, update, env);
         ctx.request_paint();
     }
 

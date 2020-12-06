@@ -29,7 +29,7 @@ pub struct Button<T> {
     label_size: Size,
 }
 
-impl<T: Data> Button<T> {
+impl<T: Diffable> Button<T> {
     /// Create a new button with a text label.
     ///
     /// Use the [`.on_click`] method to provide a closure to be called when the
@@ -75,42 +75,43 @@ impl<T: Data> Button<T> {
         }
     }
 
-    /// Construct a new dynamic button.
-    ///
-    /// The contents of this button are generated from the data using a closure.
-    ///
-    /// This is provided as a convenience; a closure can also be passed to [`new`],
-    /// but due to limitations of the implementation of that method, the types in
-    /// the closure need to be annotated, which is not true for this method.
-    ///
-    /// # Examples
-    ///
-    /// The following are equivalent.
-    ///
-    /// ```
-    /// use druid::Env;
-    /// use druid::widget::Button;
-    /// let button1: Button<u32> = Button::new(|data: &u32, _: &Env| format!("total is {}", data));
-    /// let button2: Button<u32> = Button::dynamic(|data, _| format!("total is {}", data));
-    /// ```
-    ///
-    /// [`new`]: #method.new
-    pub fn dynamic(text: impl Fn(&T, &Env) -> String + 'static) -> Self {
-        let text: LabelText<T> = text.into();
-        Button::new(text)
-    }
+    // TODO: once dynamic labels work
+    // /// Construct a new dynamic button.
+    // ///
+    // /// The contents of this button are generated from the data using a closure.
+    // ///
+    // /// This is provided as a convenience; a closure can also be passed to [`new`],
+    // /// but due to limitations of the implementation of that method, the types in
+    // /// the closure need to be annotated, which is not true for this method.
+    // ///
+    // /// # Examples
+    // ///
+    // /// The following are equivalent.
+    // ///
+    // /// ```
+    // /// use druid::Env;
+    // /// use druid::widget::Button;
+    // /// let button1: Button<u32> = Button::new(|data: &u32, _: &Env| format!("total is {}", data));
+    // /// let button2: Button<u32> = Button::dynamic(|data, _| format!("total is {}", data));
+    // /// ```
+    // ///
+    // /// [`new`]: #method.new
+    // pub fn dynamic(text: impl Fn(&T, &Env) -> String + 'static) -> Self {
+    //     let text: LabelText<T> = text.into();
+    //     Button::new(text)
+    // }
 
     /// Provide a closure to be called when this button is clicked.
     pub fn on_click(
         self,
-        f: impl Fn(&mut EventCtx, &mut T, &Env) + 'static,
+        f: impl Fn(&mut EventCtx<T>, &T, &Env) + 'static,
     ) -> ControllerHost<Self, Click<T>> {
         ControllerHost::new(self, Click::new(f))
     }
 }
 
-impl<T: Data> Widget<T> for Button<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut T, _env: &Env) {
+impl<T: Diffable> Widget<T> for Button<T> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, _data: &T, _env: &Env) {
         match event {
             Event::MouseDown(_) => {
                 ctx.set_active(true);
@@ -133,8 +134,8 @@ impl<T: Data> Widget<T> for Button<T> {
         self.label.lifecycle(ctx, event, data, env)
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
-        self.label.update(ctx, old_data, data, env)
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
+        self.label.update(ctx, old_data, update, env)
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {

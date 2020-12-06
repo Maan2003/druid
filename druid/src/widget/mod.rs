@@ -15,8 +15,8 @@
 //! Common widgets.
 
 mod align;
-// mod button;
-// mod checkbox;
+mod button;
+mod checkbox;
 mod click;
 mod clip_box;
 mod common;
@@ -56,8 +56,8 @@ mod widget;
 
 // pub use self::image::Image;
 pub use align::Align;
-// pub use button::Button;
-// pub use checkbox::Checkbox;
+pub use button::Button;
+pub use checkbox::Checkbox;
 pub use click::Click;
 pub use clip_box::{ClipBox, Viewport};
 pub use common::FillStrat;
