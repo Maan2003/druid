@@ -13,7 +13,9 @@
 // limitations under the License.
 
 //! A label widget.
+// TODO: enable Dynamic and LocalizedLabel
 
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use crate::text::TextStorage;
@@ -115,13 +117,13 @@ pub enum LineBreaking {
 /// [`LocalizedString`]: ../struct.LocalizedString.html
 /// [`Label`]: struct.Label.html
 pub enum LabelText<T> {
-    /// Localized string that will be resolved through `Env`.
-    Localized(LocalizedString<T>),
+    // /// Localized string that will be resolved through `Env`.
+    // Localized(LocalizedString<T>),
     /// Static text.
-    Static(Static),
-    /// The provided closure is called on update, and its return
-    /// value is used as the text for the label.
-    Dynamic(Dynamic<T>),
+    Static(Static<T>),
+    // /// The provided closure is called on update, and its return
+    // /// value is used as the text for the label.
+    // Dynamic(Dynamic<T>),
 }
 
 /// Text that is computed dynamically.
@@ -131,7 +133,7 @@ pub struct Dynamic<T> {
 }
 
 /// Static text.
-pub struct Static {
+pub struct Static<T> {
     /// The text.
     string: ArcStr,
     /// Whether or not the `resolved` method has been called yet.
@@ -140,6 +142,7 @@ pub struct Static {
     /// so that callers will know to retrieve the text. This matches
     /// the behaviour of the other variants.
     resolved: bool,
+    _t: PhantomData<T>,
 }
 
 impl<T: TextStorage> RawLabel<T> {
@@ -285,7 +288,7 @@ impl<T: TextStorage> Label<T> {
     }
 }
 
-impl<T: Data> Label<T> {
+impl<T: Diffable> Label<T> {
     /// Construct a new `Label` widget.
     ///
     /// ```
@@ -312,31 +315,30 @@ impl<T: Data> Label<T> {
             text_should_be_updated: true,
         }
     }
-
-    /// Construct a new dynamic label.
-    ///
-    /// The contents of this label are generated from the data using a closure.
-    ///
-    /// This is provided as a convenience; a closure can also be passed to [`new`],
-    /// but due to limitations of the implementation of that method, the types in
-    /// the closure need to be annotated, which is not true for this method.
-    ///
-    /// # Examples
-    ///
-    /// The following are equivalent.
-    ///
-    /// ```
-    /// use druid::Env;
-    /// use druid::widget::Label;
-    /// let label1: Label<u32> = Label::new(|data: &u32, _: &Env| format!("total is {}", data));
-    /// let label2: Label<u32> = Label::dynamic(|data, _| format!("total is {}", data));
-    /// ```
-    ///
-    /// [`new`]: #method.new
-    pub fn dynamic(text: impl Fn(&T, &Env) -> String + 'static) -> Self {
-        let text: LabelText<T> = text.into();
-        Label::new(text)
-    }
+    // /// Construct a new dynamic label.
+    // ///
+    // /// The contents of this label are generated from the data using a closure.
+    // ///
+    // /// This is provided as a convenience; a closure can also be passed to [`new`],
+    // /// but due to limitations of the implementation of that method, the types in
+    // /// the closure need to be annotated, which is not true for this method.
+    // ///
+    // /// # Examples
+    // ///
+    // /// The following are equivalent.
+    // ///
+    // /// ```
+    // /// use druid::Env;
+    // /// use druid::widget::Label;
+    // /// let label1: Label<u32> = Label::new(|data: &u32, _: &Env| format!("total is {}", data));
+    // /// let label2: Label<u32> = Label::dynamic(|data, _| format!("total is {}", data));
+    // /// ```
+    // ///
+    // /// [`new`]: #method.new
+    // pub fn dynamic(text: impl Fn(&T, &Env) -> String + 'static) -> Self {
+    //     let text: LabelText<T> = text.into();
+    //     Label::new(text)
+    // }
 
     /// Return the current value of the label's text.
     pub fn text(&self) -> ArcStr {
@@ -417,11 +419,12 @@ impl<T: Data> Label<T> {
     }
 }
 
-impl Static {
+impl<T> Static<T> {
     fn new(s: ArcStr) -> Self {
         Static {
             string: s,
             resolved: false,
+            _t: PhantomData,
         }
     }
 
@@ -441,13 +444,13 @@ impl<T> Dynamic<T> {
     }
 }
 
-impl<T: Data> LabelText<T> {
+impl<T> LabelText<T> {
     /// Call callback with the text that should be displayed.
     pub fn with_display_text<V>(&self, mut cb: impl FnMut(&str) -> V) -> V {
         match self {
             LabelText::Static(s) => cb(&s.string),
-            LabelText::Localized(s) => cb(&s.localized_str()),
-            LabelText::Dynamic(s) => cb(&s.resolved),
+            // LabelText::Localized(s) => cb(&s.localized_str()),
+            // LabelText::Dynamic(s) => cb(&s.resolved),
         }
     }
 
@@ -455,8 +458,8 @@ impl<T: Data> LabelText<T> {
     pub fn display_text(&self) -> ArcStr {
         match self {
             LabelText::Static(s) => s.string.clone(),
-            LabelText::Localized(s) => s.localized_str(),
-            LabelText::Dynamic(s) => s.resolved.clone(),
+            // LabelText::Localized(s) => s.localized_str(),
+            // LabelText::Dynamic(s) => s.resolved.clone(),
         }
     }
 
@@ -467,14 +470,14 @@ impl<T: Data> LabelText<T> {
     pub fn resolve(&mut self, data: &T, env: &Env) -> bool {
         match self {
             LabelText::Static(s) => s.resolve(),
-            LabelText::Localized(s) => s.resolve(data, env),
-            LabelText::Dynamic(s) => s.resolve(data, env),
+            // LabelText::Localized(s) => s.resolve(data, env),
+            // LabelText::Dynamic(s) => s.resolve(data, env),
         }
     }
 }
 
-impl<T: Data> Widget<T> for Label<T> {
-    fn event(&mut self, _ctx: &mut EventCtx, _event: &Event, _data: &mut T, _env: &Env) {}
+impl<T: Diffable> Widget<T> for Label<T> {
+    fn event(&mut self, _ctx: &mut EventCtx<T>, _event: &Event, _data: &T, _env: &Env) {}
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
         if matches!(event, LifeCycle::WidgetAdded) {
@@ -485,17 +488,17 @@ impl<T: Data> Widget<T> for Label<T> {
         }
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
-        let data_changed = self.text.resolve(data, env);
-        self.text_should_be_updated = false;
-        if data_changed {
-            let new_text = self.text.display_text();
-            self.label.update(ctx, &self.current_text, &new_text, env);
-            self.current_text = new_text;
-        } else if ctx.env_changed() {
-            self.label
-                .update(ctx, &self.current_text, &self.current_text, env);
-        }
+    fn update(&mut self, ctx: &mut UpdateCtx, data: &T, update: &T::Diff , env: &Env) {
+        // let data_changed = self.text.resolve(data, env);
+        // self.text_should_be_updated = false;
+        // if data_changed {
+        //     let new_text = self.text.display_text();
+        //     self.label.update(ctx, &self.current_text, &new_text, env);
+        //     self.current_text = new_text;
+        // } else if ctx.env_changed() {
+        //     self.label
+        //         .update(ctx, &self.current_text, &self.current_text, env);
+        // }
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &T, env: &Env) -> Size {
@@ -510,22 +513,22 @@ impl<T: Data> Widget<T> for Label<T> {
     }
 }
 
-impl<T: TextStorage> Widget<T> for RawLabel<T> {
-    fn event(&mut self, _ctx: &mut EventCtx, _event: &Event, _data: &mut T, _env: &Env) {}
+impl<T: TextStorage + Diffable> Widget<T> for RawLabel<T> {
+    fn event(&mut self, _ctx: &mut EventCtx<T>, _event: &Event, _data: &T, _env: &Env) {}
     fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, _env: &Env) {
         if matches!(event, LifeCycle::WidgetAdded) {
             self.layout.set_text(data.to_owned());
         }
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, _env: &Env) {
-        if !old_data.same(data) {
-            self.layout.set_text(data.clone());
-            ctx.request_layout();
-        }
-        if self.layout.needs_rebuild_after_update(ctx) {
-            ctx.request_layout();
-        }
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, _env: &Env) {
+        // if !old_data.same(data) {
+        //     self.layout.set_text(data.clone());
+        //     ctx.request_layout();
+        // }
+        // if self.layout.needs_rebuild_after_update(ctx) {
+        //     ctx.request_layout();
+        // }
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &T, env: &Env) -> Size {
@@ -594,18 +597,18 @@ impl<T> From<ArcStr> for LabelText<T> {
     }
 }
 
-impl<T> From<LocalizedString<T>> for LabelText<T> {
-    fn from(src: LocalizedString<T>) -> LabelText<T> {
-        LabelText::Localized(src)
-    }
-}
+// impl<T> From<LocalizedString<T>> for LabelText<T> {
+//     fn from(src: LocalizedString<T>) -> LabelText<T> {
+//         LabelText::Localized(src)
+//     }
+// }
 
-impl<T, F: Fn(&T, &Env) -> String + 'static> From<F> for LabelText<T> {
-    fn from(src: F) -> LabelText<T> {
-        let f = Box::new(src);
-        LabelText::Dynamic(Dynamic {
-            f,
-            resolved: ArcStr::from(""),
-        })
-    }
-}
+// impl<T, F: Fn(&T, &Env) -> String + 'static> From<F> for LabelText<T> {
+//     fn from(src: F) -> LabelText<T> {
+//         let f = Box::new(src);
+//         LabelText::Dynamic(Dynamic {
+//             f,
+//             resolved: ArcStr::from(""),
+//         })
+//     }
+// }
