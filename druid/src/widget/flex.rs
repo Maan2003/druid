@@ -135,7 +135,7 @@ use crate::{Data, KeyOrValue, Point, Rect, WidgetPod};
 /// [`expand_width`]: ../trait.WidgetExt.html#method.expand_width
 /// [`TextBox`]: struct.TextBox.html
 /// [`SizedBox`]: struct.SizedBox.html
-pub struct Flex<T> {
+pub struct Flex<T: Diffable> {
     direction: Axis,
     cross_alignment: CrossAxisAlignment,
     main_alignment: MainAxisAlignment,
@@ -143,7 +143,7 @@ pub struct Flex<T> {
     children: Vec<ChildWidget<T>>,
 }
 
-struct ChildWidget<T> {
+struct ChildWidget<T: Diffable> {
     widget: WidgetPod<T, Box<dyn Widget<T>>>,
     params: FlexParams,
 }
@@ -196,7 +196,7 @@ pub struct FlexParams {
 /// Most often used by widgets to describe
 /// the direction in which they grow as their number of children increases.
 /// Has some methods for manipulating geometry with respect to the axis.
-#[derive(Data, Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Data)]
 pub enum Axis {
     /// The x axis
     Horizontal,
@@ -312,7 +312,7 @@ pub enum CrossAxisAlignment {
 ///
 /// If there is surplus space on the main axis after laying out children, this
 /// enum represents how children are laid out in this space.
-#[derive(Debug, Clone, Copy, PartialEq, Data)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MainAxisAlignment {
     /// Top or leading.
     ///
@@ -356,7 +356,7 @@ impl FlexParams {
     }
 }
 
-impl<T> ChildWidget<T> {
+impl<T: Diffable> ChildWidget<T> {
     fn new(child: impl Widget<T> + 'static, params: FlexParams) -> Self {
         ChildWidget {
             widget: WidgetPod::new(Box::new(child)),
@@ -365,7 +365,7 @@ impl<T> ChildWidget<T> {
     }
 }
 
-impl<T: Data> Flex<T> {
+impl<T: Diffable> Flex<T> {
     /// Create a new Flex oriented along the provided axis.
     pub fn for_axis(axis: Axis) -> Self {
         Flex {
@@ -595,8 +595,8 @@ impl<T: Data> Flex<T> {
     }
 }
 
-impl<T: Data> Widget<T> for Flex<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable> Widget<T> for Flex<T> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         for child in &mut self.children {
             child.widget.event(ctx, event, data, env);
         }
@@ -608,9 +608,9 @@ impl<T: Data> Widget<T> for Flex<T> {
         }
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
         for child in &mut self.children {
-            child.widget.update(ctx, data, env);
+            child.widget.update(ctx, old_data, update, env);  
         }
     }
 
@@ -892,10 +892,10 @@ impl Iterator for Spacing {
     }
 }
 
-impl<T: Data> Widget<T> for Spacer {
-    fn event(&mut self, _: &mut EventCtx, _: &Event, _: &mut T, _: &Env) {}
+impl<T: Diffable> Widget<T> for Spacer {
+    fn event(&mut self, _: &mut EventCtx<T>, _: &Event, _: &T, _: &Env) {}
     fn lifecycle(&mut self, _: &mut LifeCycleCtx, _: &LifeCycle, _: &T, _: &Env) {}
-    fn update(&mut self, _: &mut UpdateCtx, _: &T, _: &T, _: &Env) {}
+    fn update(&mut self, _: &mut UpdateCtx, _: &T, _: &T::Diff, _: &Env) {}
     fn layout(&mut self, _: &mut LayoutCtx, _: &BoxConstraints, _: &T, env: &Env) -> Size {
         let major = self.len.resolve(env);
         self.axis.pack(major, 0.0).into()
