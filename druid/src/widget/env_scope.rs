@@ -15,15 +15,15 @@
 //! A widget that accepts a closure to update the environment for its child.
 
 use crate::widget::prelude::*;
-use crate::{Data, Point, WidgetPod};
+use crate::{Point, WidgetPod};
 
 /// A widget that accepts a closure to update the environment for its child.
-pub struct EnvScope<T, W> {
-    pub(crate) f: Box<dyn Fn(&mut Env, &T)>,
+pub struct EnvScope<T: Diffable, W> {
+    pub(crate) f: Box<dyn Fn(&mut Env, &T, Option<&T::Diff>)>,
     pub(crate) child: WidgetPod<T, W>,
 }
 
-impl<T, W: Widget<T>> EnvScope<T, W> {
+impl<T: Diffable, W: Widget<T>> EnvScope<T, W> {
     /// Create a widget that updates the environment for its descendants.
     ///
     /// Accepts a closure that sets Env values.
@@ -47,7 +47,7 @@ impl<T, W: Widget<T>> EnvScope<T, W> {
     /// ```
     ///
     /// [`WidgetExt::env_scope`]: ../trait.WidgetExt.html#method.env_scope
-    pub fn new(f: impl Fn(&mut Env, &T) + 'static, child: W) -> EnvScope<T, W> {
+    pub fn new(f: impl Fn(&mut Env, &T, Option<&T::Diff>) + 'static, child: W) -> EnvScope<T, W> {
         EnvScope {
             f: Box::new(f),
             child: WidgetPod::new(child),
@@ -55,32 +55,32 @@ impl<T, W: Widget<T>> EnvScope<T, W> {
     }
 }
 
-impl<T: Data, W: Widget<T>> Widget<T> for EnvScope<T, W> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable, W: Widget<T>> Widget<T> for EnvScope<T, W> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         let mut new_env = env.clone();
-        (self.f)(&mut new_env, &data);
+        (self.f)(&mut new_env, data, None);
 
         self.child.event(ctx, event, data, &new_env)
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
         let mut new_env = env.clone();
-        (self.f)(&mut new_env, &data);
+        (self.f)(&mut new_env, &data, None);
         self.child.lifecycle(ctx, event, data, &new_env)
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
         let mut new_env = env.clone();
-        (self.f)(&mut new_env, &data);
+        (self.f)(&mut new_env, old_data, Some(&update));
 
-        self.child.update(ctx, data, &new_env);
+        self.child.update(ctx, old_data, update, &new_env);
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
         bc.debug_check("EnvScope");
 
         let mut new_env = env.clone();
-        (self.f)(&mut new_env, &data);
+        (self.f)(&mut new_env, &data, None);
 
         let size = self.child.layout(ctx, &bc, data, &new_env);
         self.child.set_origin(ctx, data, env, Point::ORIGIN);
@@ -89,7 +89,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for EnvScope<T, W> {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
         let mut new_env = env.clone();
-        (self.f)(&mut new_env, &data);
+        (self.f)(&mut new_env, &data, None);
 
         self.child.paint(ctx, data, &new_env);
     }

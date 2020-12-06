@@ -15,23 +15,23 @@
 //! A widget that switches dynamically between two child views.
 
 use crate::widget::prelude::*;
-use crate::{Data, Point, WidgetPod};
+use crate::{Point, WidgetPod};
 
 /// A widget that switches between two possible child views.
-pub struct Either<T> {
-    closure: Box<dyn Fn(&T, &Env) -> bool>,
+pub struct Either<T: Diffable> {
+    closure: Box<dyn Fn(&T, Option<&T::Diff>, &Env) -> bool>,
     true_branch: WidgetPod<T, Box<dyn Widget<T>>>,
     false_branch: WidgetPod<T, Box<dyn Widget<T>>>,
     current: bool,
 }
 
-impl<T> Either<T> {
+impl<T: Diffable> Either<T> {
     /// Create a new widget that switches between two views.
     ///
     /// The given closure is evaluated on data change. If its value is `true`, then
     /// the `true_branch` widget is shown, otherwise `false_branch`.
     pub fn new(
-        closure: impl Fn(&T, &Env) -> bool + 'static,
+        closure: impl Fn(&T, Option<&T::Diff>, &Env) -> bool + 'static,
         true_branch: impl Widget<T> + 'static,
         false_branch: impl Widget<T> + 'static,
     ) -> Either<T> {
@@ -44,8 +44,8 @@ impl<T> Either<T> {
     }
 }
 
-impl<T: Data> Widget<T> for Either<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable> Widget<T> for Either<T> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         if event.should_propagate_to_hidden() {
             self.true_branch.event(ctx, event, data, env);
             self.false_branch.event(ctx, event, data, env);
@@ -56,7 +56,7 @@ impl<T: Data> Widget<T> for Either<T> {
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
         if let LifeCycle::WidgetAdded = event {
-            self.current = (self.closure)(data, env);
+            self.current = (self.closure)(data, None, env);
         }
 
         if event.should_propagate_to_hidden() {
@@ -67,13 +67,13 @@ impl<T: Data> Widget<T> for Either<T> {
         }
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
-        let current = (self.closure)(data, env);
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
+        let current = (self.closure)(old_data, Some(update), env);
         if current != self.current {
             self.current = current;
             ctx.request_layout();
         }
-        self.current_widget().update(ctx, data, env)
+        self.current_widget().update(ctx,old_data, update, env)
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
@@ -89,7 +89,7 @@ impl<T: Data> Widget<T> for Either<T> {
     }
 }
 
-impl<T> Either<T> {
+impl<T: Diffable> Either<T> {
     fn current_widget(&mut self) -> &mut WidgetPod<T, Box<dyn Widget<T>>> {
         if self.current {
             &mut self.true_branch
