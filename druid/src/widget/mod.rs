@@ -19,7 +19,7 @@
 // mod checkbox;
 // mod click;
 // mod clip_box;
-// mod common;
+mod common;
 // mod container;
 mod controller;
 // mod either;
