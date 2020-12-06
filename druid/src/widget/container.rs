@@ -1,4 +1,4 @@
-// Copyright 2019 The Druid Authors.
+/// Copyright 2019 The Druid Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ pub struct Container<T> {
     inner: WidgetPod<T, Box<dyn Widget<T>>>,
 }
 
-impl<T: Data> Container<T> {
+impl<T: Diffable> Container<T> {
     /// Create Container with a child
     pub fn new(inner: impl Widget<T> + 'static) -> Self {
         Self {
@@ -128,8 +128,8 @@ impl<T: Data> Container<T> {
     }
 }
 
-impl<T: Data> Widget<T> for Container<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable> Widget<T> for Container<T> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         self.inner.event(ctx, event, data, env);
     }
 
@@ -137,11 +137,11 @@ impl<T: Data> Widget<T> for Container<T> {
         self.inner.lifecycle(ctx, event, data, env)
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
         if let Some(BackgroundBrush::Painter(p)) = self.background.as_mut() {
-            p.update(ctx, old_data, data, env);
+            p.update(ctx, old_data, update, env);
         }
-        self.inner.update(ctx, data, env);
+        self.inner.update(ctx, old_data, update, env);
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {

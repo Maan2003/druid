@@ -14,7 +14,7 @@
 
 use crate::piet::{FixedGradient, LinearGradient, PaintBrush, RadialGradient};
 use crate::widget::prelude::*;
-use crate::{Color, Data, Key};
+use crate::{Color, Data, Key, Diffable};
 
 /// A widget that only handles painting.
 ///
@@ -105,7 +105,7 @@ impl<T> Painter<T> {
     }
 }
 
-impl<T: Data> BackgroundBrush<T> {
+impl<T: Diffable> BackgroundBrush<T> {
     /// Draw this `BackgroundBrush` into a provided [`PaintCtx`].
     ///
     /// [`PaintCtx`]: ../struct.PaintCtx.html
@@ -122,13 +122,11 @@ impl<T: Data> BackgroundBrush<T> {
     }
 }
 
-impl<T: Data> Widget<T> for Painter<T> {
-    fn event(&mut self, _: &mut EventCtx, _: &Event, _: &mut T, _: &Env) {}
+impl<T: Diffable> Widget<T> for Painter<T> {
+    fn event(&mut self, _: &mut EventCtx<T>, _: &Event, _: &T, _: &Env) {}
     fn lifecycle(&mut self, _: &mut LifeCycleCtx, _: &LifeCycle, _: &T, _: &Env) {}
-    fn update(&mut self, ctx: &mut UpdateCtx, old: &T, new: &T, _: &Env) {
-        if !old.same(new) {
-            ctx.request_paint();
-        }
+    fn update(&mut self, ctx: &mut UpdateCtx, old: &T, update: &T::Diff, _: &Env) {
+        ctx.request_paint();
     }
     fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, _: &T, _: &Env) -> Size {
         bc.max()
