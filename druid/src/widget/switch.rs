@@ -87,7 +87,7 @@ impl Switch {
 }
 
 impl Widget<bool> for Switch {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut bool, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx<bool>, event: &Event, data: &bool, env: &Env) {
         let switch_height = env.get(theme::BORDERED_WIDGET_HEIGHT);
         let switch_width = switch_height * SWITCH_WIDTH_RATIO;
         let knob_size = switch_height - 2. * SWITCH_PADDING;
@@ -100,14 +100,12 @@ impl Widget<bool> for Switch {
                 ctx.request_paint();
             }
             Event::MouseUp(_) => {
-                if self.knob_dragged {
-                    // toggle value when dragging if knob has been moved far enough
-                    *data = self.knob_pos.x > switch_width / 2.;
-                } else if ctx.is_active() {
-                    // toggle value on click
-                    *data = !*data;
-                }
-
+                // toggle value on click or when dragging if knob has been moved far enough
+                if ctx.is_active() || (self.knob_dragged && (self.knob_pos.x > switch_width / 2.) != *data) {
+                    ctx.send_update(
+                        <bool as Diffable>::Diff::Set(!*data)
+                    );
+                };
                 ctx.set_active(false);
 
                 self.knob_dragged = false;
@@ -162,11 +160,9 @@ impl Widget<bool> for Switch {
         }
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &bool, data: &bool, _env: &Env) {
-        if old_data != data {
-            self.animation_in_progress = true;
-            ctx.request_anim_frame();
-        }
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &bool, _data: &<bool as Diffable>::Diff, _env: &Env) {
+        self.animation_in_progress = true;
+        ctx.request_anim_frame();
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, _: &bool, env: &Env) -> Size {

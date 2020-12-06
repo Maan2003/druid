@@ -66,8 +66,8 @@ impl Default for Spinner {
     }
 }
 
-impl<T: Data> Widget<T> for Spinner {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut T, _env: &Env) {
+impl<T: Diffable> Widget<T> for Spinner {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, _data: &T, _env: &Env) {
         if let Event::AnimFrame(interval) = event {
             self.t += (*interval as f64) * 1e-9;
             if self.t >= 1.0 {
@@ -85,7 +85,7 @@ impl<T: Data> Widget<T> for Spinner {
         }
     }
 
-    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &T, _data: &T, _env: &Env) {}
+    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &T, _update: &T::Diff, _env: &Env) {}
 
     fn layout(
         &mut self,

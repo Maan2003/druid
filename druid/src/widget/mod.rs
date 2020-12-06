@@ -41,12 +41,12 @@ mod painter;
 mod sized_box;
 // mod slider;
 mod spinner;
-// mod split;
+mod split;
 // mod stepper;
 // #[cfg(feature = "svg")]
 // #[cfg_attr(docsrs, doc(cfg(feature = "svg")))]
 // mod svg;
-// mod switch;
+mod switch;
 // mod tabs;
 // mod textbox;
 /// mod view_switcher;
@@ -79,12 +79,12 @@ pub use painter::{BackgroundBrush, Painter};
 // pub use scroll::Scroll;
 pub use sized_box::SizedBox;
 // pub use slider::Slider;
-// pub use spinner::Spinner;
-// pub use split::Split;
+pub use spinner::Spinner;
+pub use split::Split;
 // pub use stepper::Stepper;
 // #[cfg(feature = "svg")]
 // pub use svg::{Svg, SvgData};
-// pub use switch::Switch;
+pub use switch::Switch;
 // pub use tabs::{TabInfo, Tabs, TabsEdge, TabsPolicy, TabsState, TabsTransition};
 // pub use textbox::TextBox;
 // pub use view_switcher::ViewSwitcher;

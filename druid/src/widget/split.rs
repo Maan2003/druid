@@ -20,7 +20,7 @@ use crate::widget::prelude::*;
 use crate::{theme, Color, Cursor, Data, Point, Rect, WidgetPod};
 
 /// A container containing two other widgets, splitting the area either horizontally or vertically.
-pub struct Split<T> {
+pub struct Split<T: Diffable> {
     split_axis: Axis,
     split_point_chosen: f64,
     split_point_effective: f64,
@@ -33,7 +33,7 @@ pub struct Split<T> {
     child2: WidgetPod<T, Box<dyn Widget<T>>>,
 }
 
-impl<T> Split<T> {
+impl<T: Diffable> Split<T> {
     /// Create a new split panel, with the specified axis being split in two.
     ///
     /// Horizontal split axis means that the children are left and right.
@@ -264,8 +264,8 @@ impl<T> Split<T> {
     }
 }
 
-impl<T: Data> Widget<T> for Split<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable> Widget<T> for Split<T> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         if self.child1.is_active() {
             self.child1.event(ctx, event, data, env);
             if ctx.is_handled() {
@@ -326,9 +326,9 @@ impl<T: Data> Widget<T> for Split<T> {
         self.child2.lifecycle(ctx, event, data, env);
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
-        self.child1.update(ctx, &data, env);
-        self.child2.update(ctx, &data, env);
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
+        self.child1.update(ctx, old_data, update, env);
+        self.child2.update(ctx, old_data, update, env);
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
