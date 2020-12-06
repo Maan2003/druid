@@ -28,13 +28,13 @@ use crate::Data;
 /// If not given a child, SizedBox will try to size itself as close to the specified height
 /// and width as possible given the parent's constraints. If height or width is not set,
 /// it will be treated as zero.
-pub struct SizedBox<T> {
+pub struct SizedBox<T: Diffable> {
     inner: Option<Box<dyn Widget<T>>>,
     width: Option<f64>,
     height: Option<f64>,
 }
 
-impl<T> SizedBox<T> {
+impl<T: Diffable> SizedBox<T> {
     /// Construct container with child, and both width and height not set.
     pub fn new(inner: impl Widget<T> + 'static) -> Self {
         Self {
@@ -126,8 +126,8 @@ impl<T> SizedBox<T> {
     }
 }
 
-impl<T: Data> Widget<T> for SizedBox<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable> Widget<T> for SizedBox<T> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         if let Some(ref mut inner) = self.inner {
             inner.event(ctx, event, data, env);
         }
@@ -139,9 +139,9 @@ impl<T: Data> Widget<T> for SizedBox<T> {
         }
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
         if let Some(ref mut inner) = self.inner {
-            inner.update(ctx, old_data, data, env);
+            inner.update(ctx, old_data, update, env);
         }
     }
 

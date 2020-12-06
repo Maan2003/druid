@@ -15,10 +15,10 @@
 //! A widget that just adds padding during layout.
 
 use crate::widget::prelude::*;
-use crate::{Data, Insets, Point, WidgetPod};
+use crate::{Diffable, Insets, Point, WidgetPod};
 
 /// A widget that just adds padding around its child.
-pub struct Padding<T> {
+pub struct Padding<T: Diffable> {
     left: f64,
     right: f64,
     top: f64,
@@ -27,7 +27,7 @@ pub struct Padding<T> {
     child: WidgetPod<T, Box<dyn Widget<T>>>,
 }
 
-impl<T> Padding<T> {
+impl<T: Diffable> Padding<T> {
     /// Create a new widget with the specified padding. This can either be an instance
     /// of [`kurbo::Insets`], a f64 for uniform padding, a 2-tuple for axis-uniform padding
     /// or 4-tuple with (left, top, right, bottom) values.
@@ -69,8 +69,8 @@ impl<T> Padding<T> {
     }
 }
 
-impl<T: Data> Widget<T> for Padding<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable> Widget<T> for Padding<T> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         self.child.event(ctx, event, data, env)
     }
 
@@ -78,8 +78,8 @@ impl<T: Data> Widget<T> for Padding<T> {
         self.child.lifecycle(ctx, event, data, env)
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
-        self.child.update(ctx, data, env);
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
+        self.child.update(ctx, old_data, update, env);
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {

@@ -23,7 +23,7 @@ pub struct DebugInvalidation<T, W> {
     marker: std::marker::PhantomData<T>,
 }
 
-impl<T: Data, W: Widget<T>> DebugInvalidation<T, W> {
+impl<T: Diffable, W: Widget<T>> DebugInvalidation<T, W> {
     /// Wraps a widget in a `DebugInvalidation`.
     pub fn new(inner: W) -> Self {
         Self {
@@ -34,8 +34,8 @@ impl<T: Data, W: Widget<T>> DebugInvalidation<T, W> {
     }
 }
 
-impl<T: Data, W: Widget<T>> Widget<T> for DebugInvalidation<T, W> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable, W: Widget<T>> Widget<T> for DebugInvalidation<T, W> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         self.inner.event(ctx, event, data, env);
     }
 
@@ -43,8 +43,8 @@ impl<T: Data, W: Widget<T>> Widget<T> for DebugInvalidation<T, W> {
         self.inner.lifecycle(ctx, event, data, env)
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
-        self.inner.update(ctx, old_data, data, env);
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
+        self.inner.update(ctx, old_data, update, env);
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
