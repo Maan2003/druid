@@ -30,8 +30,8 @@ impl<W> IdentityWrapper<W> {
     }
 }
 
-impl<T: Data, W: Widget<T>> Widget<T> for IdentityWrapper<W> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<T: Diffable, W: Widget<T>> Widget<T> for IdentityWrapper<W> {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         self.inner.event(ctx, event, data, env);
     }
 
@@ -39,8 +39,8 @@ impl<T: Data, W: Widget<T>> Widget<T> for IdentityWrapper<W> {
         self.inner.lifecycle(ctx, event, data, env)
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
-        self.inner.update(ctx, old_data, data, env);
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
+        self.inner.update(ctx, old_data, update, env);
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {

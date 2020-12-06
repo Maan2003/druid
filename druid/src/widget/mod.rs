@@ -25,7 +25,7 @@ mod controller;
 // mod either;
 // mod env_scope;
 // mod flex;
-// mod identity_wrapper;
+mod identity_wrapper;
 // mod image;
 // mod invalidation;
 // mod label;
