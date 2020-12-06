@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! A widget that provides simple visual styling options to a child.
+///! A widget that provides simple visual styling options to a child.
 
 use super::BackgroundBrush;
 use crate::widget::prelude::*;

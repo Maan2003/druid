@@ -18,10 +18,11 @@
 //! [`Lens`]: ../trait.Lens.html
 //! [`Data`]: ../trait.Data.html
 
+use std::collections::VecDeque;
 use std::marker::PhantomData;
 
 use crate::widget::prelude::*;
-use crate::{Data, Lens};
+use crate::{Lens, Diffable};
 
 /// A wrapper for its widget subtree to have access to a part
 /// of its parent's data.
@@ -31,7 +32,7 @@ use crate::{Data, Lens};
 /// Often, a part of the widget hierarchy is only concerned with a part
 /// of that data. The `LensWrap` widget is a way to "focus" the data
 /// reference down, for the subtree. One advantage is performance;
-/// data changes that don't intersect the scope of the lens aren't
+/// data changes that don't intersect the Lens of the lens aren't
 /// propagated.
 ///
 /// Another advantage is generality and reuse. If a widget (or tree of
@@ -40,7 +41,7 @@ use crate::{Data, Lens};
 /// that chunk within the application state.
 ///
 /// This wrapper takes a [`Lens`] as an argument, which is a specification
-/// of a struct field, or some other way of narrowing the scope.
+/// of a struct field, or some other way of narrowing the Lens.
 ///
 /// [`Lens`]: trait.Lens.html
 pub struct LensWrap<T, U, L, W> {
@@ -70,31 +71,45 @@ impl<T, U, L, W> LensWrap<T, U, L, W> {
 
 impl<T, U, L, W> Widget<T> for LensWrap<T, U, L, W>
 where
-    T: Data,
-    U: Data,
+    T: Diffable,
+    U: Diffable,
     L: Lens<T, U>,
     W: Widget<U>,
 {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx<T>, event: &Event, data: &T, env: &Env) {
         let inner = &mut self.inner;
-        self.lens
-            .with_mut(data, |data| inner.event(ctx, event, data, env))
+        let lens = &self.lens;
+        lens.with(
+            data, |data| {
+                let mut updates = VecDeque::new();
+                let mut inner_ctx = EventCtx {
+                    updates: &mut updates,
+                    state: ctx.state,
+                    widget_state: ctx.widget_state,
+                    notifications: ctx.notifications,
+                    is_handled: ctx.is_handled,
+                    is_root: ctx.is_root,
+                };
+                inner.event(&mut inner_ctx, event, data, env);
+                ctx.updates.extend(
+                    updates.into_iter().map(|diff| lens.outer_diff(diff))
+                );
+            });
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
         let inner = &mut self.inner;
-        self.lens
+        let lens = &self.lens;
+        lens
             .with(data, |data| inner.lifecycle(ctx, event, data, env))
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, update: &T::Diff, env: &Env) {
         let inner = &mut self.inner;
         let lens = &self.lens;
         lens.with(old_data, |old_data| {
-            lens.with(data, |data| {
-                if ctx.has_requested_update() || !old_data.same(data) || ctx.env_changed() {
-                    inner.update(ctx, old_data, data, env);
-                }
+            lens.with_inner_diff(update,|child_update| {
+                inner.update(ctx, old_data, child_update, env);
             })
         })
     }
