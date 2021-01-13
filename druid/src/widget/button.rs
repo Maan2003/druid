@@ -103,14 +103,14 @@ impl<T: Data> Button<T> {
     /// Provide a closure to be called when this button is clicked.
     pub fn on_click(
         self,
-        f: impl Fn(&mut EventCtx, &mut T, &Env) + 'static,
+        f: impl Fn(&mut EventCtx, &mut dyn AsRefMut<T>, &Env) + 'static,
     ) -> ControllerHost<Self, Click<T>> {
         ControllerHost::new(self, Click::new(f))
     }
 }
 
 impl<T: Data> Widget<T> for Button<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut T, _env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut dyn AsRefMut<T>, _env: &Env) {
         match event {
             Event::MouseDown(_) => {
                 ctx.set_active(true);

@@ -119,7 +119,7 @@ impl<T, W: Widget<T>> Scroll<T, W> {
 }
 
 impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         let scroll_component = &mut self.scroll_component;
         self.clip.with_port(|port| {
             scroll_component.event(port, ctx, event, env);

@@ -270,10 +270,11 @@ impl<In: Data, State: Data, F: Fn(In) -> State, L: Lens<State, In>, W: Widget<St
 }
 
 impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut SP::In, env: &Env) {
-        self.with_state(data, |state, inner| inner.event(ctx, event, state, env));
-        self.write_back_input(data);
-        ctx.request_update()
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<SP::In>, env: &Env) {
+        todo!();
+        // self.with_state(data, |state, inner| inner.event(ctx, event, state, env));
+        // self.write_back_input(data);
+        // ctx.request_update()
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &SP::In, env: &Env) {

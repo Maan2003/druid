@@ -123,7 +123,7 @@ impl<T: Data> BackgroundBrush<T> {
 }
 
 impl<T: Data> Widget<T> for Painter<T> {
-    fn event(&mut self, _: &mut EventCtx, _: &Event, _: &mut T, _: &Env) {}
+    fn event(&mut self, _: &mut EventCtx, _: &Event, _: &mut dyn AsRefMut<T>, _: &Env) {}
     fn lifecycle(&mut self, _: &mut LifeCycleCtx, _: &LifeCycle, _: &T, _: &Env) {}
     fn update(&mut self, ctx: &mut UpdateCtx, old: &T, new: &T, _: &Env) {
         if !old.same(new) {

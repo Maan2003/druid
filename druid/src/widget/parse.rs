@@ -19,6 +19,8 @@ use std::str::FromStr;
 use crate::widget::prelude::*;
 use crate::Data;
 
+use super::widget::IdWrap;
+
 /// Converts a `Widget<String>` to a `Widget<Option<T>>`, mapping parse errors to None
 pub struct Parse<T> {
     widget: T,
@@ -36,9 +38,12 @@ impl<T> Parse<T> {
 }
 
 impl<T: FromStr + Display + Data, W: Widget<String>> Widget<Option<T>> for Parse<W> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut Option<T>, env: &Env) {
-        self.widget.event(ctx, event, &mut self.state, env);
-        *data = self.state.parse().ok();
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<Option<T>>, env: &Env) {
+        let mut inner_data = IdWrap::new(&mut self.state);
+        self.widget.event(ctx, event, &mut inner_data, env);
+        if inner_data.mut_requested() {
+            data.with_mut(|data| *data = self.state.parse().ok());
+        }
     }
 
     fn lifecycle(

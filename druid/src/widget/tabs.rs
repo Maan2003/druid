@@ -325,8 +325,8 @@ impl<TP: TabsPolicy> TabBar<TP> {
                 let row = Flex::row()
                     .with_child(label)
                     .with_child(close_button.on_click(
-                        move |_ctx, data: &mut TabsState<TP>, _env| {
-                            data.policy.close_tab(key.clone(), &mut data.inner);
+                        move |_ctx, data: &mut dyn AsRefMut<TabsState<TP>>, _env| {
+                            data.with_mut(|data| data.policy.close_tab(key.clone(), &mut data.inner));
                         },
                     ));
                 WidgetPod::new(Box::new(row))
@@ -338,11 +338,11 @@ impl<TP: TabsPolicy> TabBar<TP> {
 }
 
 impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabBar<TP> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut TabsState<TP>, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<TabsState<TP>>, env: &Env) {
         match event {
             Event::MouseDown(e) => {
                 if let Some(idx) = self.find_idx(e.pos) {
-                    data.selected = idx;
+                    data.with_mut(|data| data.selected = idx);
                 }
             }
             Event::MouseMove(e) => {
@@ -574,24 +574,26 @@ impl<TP: TabsPolicy> TabsBody<TP> {
 }
 
 impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabsBody<TP> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut TabsState<TP>, env: &Env) {
-        if event.should_propagate_to_hidden() {
-            for child in self.child_pods() {
-                child.event(ctx, event, &mut data.inner, env);
-            }
-        } else if let Some(child) = self.active_child(data) {
-            child.event(ctx, event, &mut data.inner, env);
-        }
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<TabsState<TP>>, env: &Env) {
+        todo!();
+        // if event.should_propagate_to_hidden() {
+        //     for child in self.child_pods() {
+        //         todo!();
+        //         // child.event(ctx, event, &mut data.inner, env);
+        //     }
+        // } else if let Some(child) = self.active_child(data) {
+        //     child.event(ctx, event, &mut data.inner, env);
+        // }
 
-        if let (Some(t_state), Event::AnimFrame(interval)) = (&mut self.transition_state, event) {
-            t_state.current_time += *interval;
-            if t_state.live() {
-                ctx.request_anim_frame();
-            } else {
-                self.transition_state = None;
-            }
-            ctx.request_paint();
-        }
+        // if let (Some(t_state), Event::AnimFrame(interval)) = (&mut self.transition_state, event) {
+        //     t_state.current_time += *interval;
+        //     if t_state.live() {
+        //         ctx.request_anim_frame();
+        //     } else {
+        //         self.transition_state = None;
+        //     }
+        //     ctx.request_paint();
+        // }
     }
 
     fn lifecycle(
@@ -943,7 +945,7 @@ impl<TP: TabsPolicy> Tabs<TP> {
 }
 
 impl<TP: TabsPolicy> Widget<TP::Input> for Tabs<TP> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut TP::Input, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<TP::Input>, env: &Env) {
         if let TabsContent::Running { scope } = &mut self.content {
             scope.event(ctx, event, data, env);
         }

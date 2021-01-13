@@ -45,7 +45,7 @@ impl<T> Either<T> {
 }
 
 impl<T: Data> Widget<T> for Either<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         if event.should_propagate_to_hidden() {
             self.true_branch.event(ctx, event, data, env);
             self.false_branch.event(ctx, event, data, env);

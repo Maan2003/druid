@@ -57,9 +57,11 @@ impl<T, W: Widget<T>> EnvScope<T, W> {
 }
 
 impl<T: Data, W: Widget<T>> Widget<T> for EnvScope<T, W> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         let mut new_env = env.clone();
-        (self.f)(&mut new_env, &data);
+        data.with_ref(|data| {
+            (self.f)(&mut new_env, data);
+        });
 
         self.child.event(ctx, event, data, &new_env)
     }

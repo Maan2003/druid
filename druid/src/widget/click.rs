@@ -16,7 +16,7 @@
 //!
 //! [`Controller`]: struct.Controller.html
 
-use crate::widget::Controller;
+use crate::{AsRefMut, widget::Controller};
 use crate::{Data, Env, Event, EventCtx, LifeCycle, LifeCycleCtx, MouseButton, Widget};
 
 /// A clickable [`Controller`] widget. Pass this and a child widget to a
@@ -37,12 +37,12 @@ use crate::{Data, Env, Event, EventCtx, LifeCycle, LifeCycleCtx, MouseButton, Wi
 /// [`LifeCycle::HotChanged`]: ../enum.LifeCycle.html#variant.HotChanged
 pub struct Click<T> {
     /// A closure that will be invoked when the child widget is clicked.
-    action: Box<dyn Fn(&mut EventCtx, &mut T, &Env)>,
+    action: Box<dyn Fn(&mut EventCtx, &mut dyn AsRefMut<T>, &Env)>,
 }
 
 impl<T: Data> Click<T> {
     /// Create a new clickable [`Controller`] widget.
-    pub fn new(action: impl Fn(&mut EventCtx, &mut T, &Env) + 'static) -> Self {
+    pub fn new(action: impl Fn(&mut EventCtx, &mut dyn AsRefMut<T>, &Env) + 'static) -> Self {
         Click {
             action: Box::new(action),
         }
@@ -50,7 +50,7 @@ impl<T: Data> Click<T> {
 }
 
 impl<T: Data, W: Widget<T>> Controller<T, W> for Click<T> {
-    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         match event {
             Event::MouseDown(mouse_event) => {
                 if mouse_event.button == MouseButton::Left {

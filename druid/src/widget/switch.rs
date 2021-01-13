@@ -87,7 +87,7 @@ impl Switch {
 }
 
 impl Widget<bool> for Switch {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut bool, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<bool>, env: &Env) {
         let switch_height = env.get(theme::BORDERED_WIDGET_HEIGHT);
         let switch_width = switch_height * SWITCH_WIDTH_RATIO;
         let knob_size = switch_height - 2. * SWITCH_PADDING;
@@ -102,10 +102,14 @@ impl Widget<bool> for Switch {
             Event::MouseUp(_) => {
                 if self.knob_dragged {
                     // toggle value when dragging if knob has been moved far enough
-                    *data = self.knob_pos.x > switch_width / 2.;
+                    data.with_mut(|data| {
+                        *data = self.knob_pos.x > switch_width / 2.;
+                    })
                 } else if ctx.is_active() {
                     // toggle value on click
-                    *data = !*data;
+                    data.with_mut(|data| {
+                        *data = !*data;
+                    })
                 }
 
                 ctx.set_active(false);
@@ -134,7 +138,8 @@ impl Widget<bool> for Switch {
 
                 // move knob to right position depending on the value
                 if self.animation_in_progress {
-                    let change_time = if *data {
+                    let data = data.read();
+                    let change_time = if data {
                         SWITCH_CHANGE_TIME
                     } else {
                         -SWITCH_CHANGE_TIME
@@ -142,7 +147,7 @@ impl Widget<bool> for Switch {
                     let change = (switch_width / change_time) * delta;
                     self.knob_pos.x = (self.knob_pos.x + change).min(on_pos).max(off_pos);
 
-                    if (self.knob_pos.x > off_pos && !*data) || (self.knob_pos.x < on_pos && *data)
+                    if (self.knob_pos.x > off_pos && !data) || (self.knob_pos.x < on_pos && data)
                     {
                         ctx.request_anim_frame();
                     } else {

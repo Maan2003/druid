@@ -76,7 +76,13 @@ impl Slider {
 }
 
 impl Widget<f64> for Slider {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut f64, env: &Env) {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut dyn AsRefMut<f64>,
+        env: &Env,
+    ) {
         let knob_size = env.get(theme::BASIC_WIDGET_HEIGHT);
         let slider_width = ctx.size().width;
 
@@ -87,20 +93,26 @@ impl Widget<f64> for Slider {
                     self.x_offset = self.knob_pos.x - mouse.pos.x
                 } else {
                     self.x_offset = 0.;
-                    *data = self.calculate_value(mouse.pos.x, knob_size, slider_width);
+                    data.with_mut(|data| {
+                        *data = self.calculate_value(mouse.pos.x, knob_size, slider_width);
+                    });
                 }
                 ctx.request_paint();
             }
             Event::MouseUp(mouse) => {
                 if ctx.is_active() {
                     ctx.set_active(false);
-                    *data = self.calculate_value(mouse.pos.x, knob_size, slider_width);
+                    data.with_mut(|data| {
+                        *data = self.calculate_value(mouse.pos.x, knob_size, slider_width);
+                    });
                     ctx.request_paint();
                 }
             }
             Event::MouseMove(mouse) => {
                 if ctx.is_active() {
-                    *data = self.calculate_value(mouse.pos.x, knob_size, slider_width);
+                    data.with_mut(|data| {
+                        *data = self.calculate_value(mouse.pos.x, knob_size, slider_width);
+                    });
                     ctx.request_paint();
                 }
                 if ctx.is_hot() {

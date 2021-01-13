@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::app::{PendingWindow, WindowConfig};
+use crate::{AsRefMut, app::{PendingWindow, WindowConfig}};
 use crate::commands::{SUB_WINDOW_HOST_TO_PARENT, SUB_WINDOW_PARENT_TO_HOST};
 use crate::lens::Unit;
 use crate::widget::prelude::*;
@@ -98,7 +98,7 @@ impl<U, W: Widget<U>> SubWindowHost<U, W> {
 }
 
 impl<U: Data, W: Widget<U>> Widget<()> for SubWindowHost<U, W> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut (), _env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut dyn AsRefMut<()>, _env: &Env) {
         match event {
             Event::Command(cmd) if cmd.is(SUB_WINDOW_PARENT_TO_HOST) => {
                 let update = cmd.get_unchecked(SUB_WINDOW_PARENT_TO_HOST);

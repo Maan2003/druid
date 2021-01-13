@@ -190,7 +190,13 @@ impl Widget<f64> for Stepper {
         ))
     }
 
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut f64, env: &Env) {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut dyn AsRefMut<f64>,
+        env: &Env,
+    ) {
         let height = env.get(theme::BORDERED_WIDGET_HEIGHT);
 
         match event {
@@ -199,10 +205,14 @@ impl Widget<f64> for Stepper {
 
                 if mouse.pos.y > height / 2. {
                     self.decrease_active = true;
-                    self.decrement(data);
+                    data.with_mut(|data| {
+                        self.decrement(data);
+                    })
                 } else {
                     self.increase_active = true;
-                    self.increment(data);
+                    data.with_mut(|data| {
+                        self.increment(data);
+                    })
                 }
 
                 self.timer_id = ctx.request_timer(STEPPER_REPEAT_DELAY);
@@ -220,10 +230,14 @@ impl Widget<f64> for Stepper {
             }
             Event::Timer(id) if *id == self.timer_id => {
                 if self.increase_active {
-                    self.increment(data);
+                    data.with_mut(|data| {
+                        self.increment(data);
+                    })
                 }
                 if self.decrease_active {
-                    self.decrement(data);
+                    data.with_mut(|data| {
+                        self.decrement(data);
+                    })
                 }
                 self.timer_id = ctx.request_timer(STEPPER_REPEAT);
             }

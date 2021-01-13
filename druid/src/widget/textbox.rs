@@ -28,6 +28,8 @@ use crate::{
     SysMods, TextAlignment, TimerToken, Vec2,
 };
 
+use super::widget::IdWrap;
+
 const MAC_OR_LINUX: bool = cfg!(any(target_os = "macos", target_os = "linux"));
 const CURSOR_BLINK_DURATION: Duration = Duration::from_millis(500);
 
@@ -411,7 +413,7 @@ impl<T: TextStorage + EditableText> TextBox<T> {
 }
 
 impl<T: TextStorage + EditableText> Widget<T> for TextBox<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, _env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, _env: &Env) {
         self.suppress_adjust_hscroll = false;
         match event {
             Event::MouseDown(mouse) => {
@@ -423,7 +425,9 @@ impl<T: TextStorage + EditableText> Widget<T> for TextBox<T> {
                 if !mouse.focus {
                     self.was_focused_from_click = true;
                     self.reset_cursor_blink(ctx.request_timer(CURSOR_BLINK_DURATION));
-                    self.editor.click(&mouse, data);
+                    data.with_mut(|data| {
+                        self.editor.click(&mouse, data);
+                    });
                 }
 
                 ctx.request_paint();
@@ -433,7 +437,9 @@ impl<T: TextStorage + EditableText> Widget<T> for TextBox<T> {
                 mouse.pos += Vec2::new(self.hscroll_offset - self.alignment_offset, 0.0);
                 ctx.set_cursor(&Cursor::IBeam);
                 if ctx.is_active() {
-                    self.editor.drag(&mouse, data);
+                    data.with_mut(|data| {
+                        self.editor.drag(&mouse, data);
+                    });
                     ctx.request_paint();
                 }
             }
@@ -451,20 +457,20 @@ impl<T: TextStorage + EditableText> Widget<T> for TextBox<T> {
                 }
             }
             Event::Command(ref cmd) if ctx.is_focused() && cmd.is(crate::commands::COPY) => {
-                self.editor.copy(data);
+                data.with_mut(|data| self.editor.copy(data));
                 ctx.set_handled();
             }
             Event::Command(ref cmd) if ctx.is_focused() && cmd.is(crate::commands::CUT) => {
-                self.editor.cut(data);
+                data.with_mut(|data| self.editor.cut(data));
                 ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(TextBox::PERFORM_EDIT) => {
                 let edit = cmd.get_unchecked(TextBox::PERFORM_EDIT);
-                self.editor.do_edit(edit.to_owned(), data);
+                data.with_mut(|data| self.editor.do_edit(edit.to_owned(), data));
             }
             Event::Paste(ref item) => {
                 if let Some(string) = item.get_string() {
-                    self.editor.paste(string, data);
+                    data.with_mut(|data| self.editor.paste(string, data));
                 }
             }
             Event::KeyDown(key_event) => {
@@ -475,7 +481,7 @@ impl<T: TextStorage + EditableText> Widget<T> for TextBox<T> {
                     k_e => {
                         if let Some(edit) = self.input_handler.handle_event(k_e) {
                             self.suppress_adjust_hscroll = matches!(edit, EditAction::SelectAll);
-                            self.editor.do_edit(edit, data);
+                            data.with_mut(|data| self.editor.do_edit(edit, data));
                             // an explicit request update in case the selection
                             // state has changed, but the data hasn't.
                             ctx.request_update();
@@ -728,29 +734,30 @@ impl<T: Data> ValueTextBox<T> {
 }
 
 impl<T: Data> Widget<T> for ValueTextBox<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         if matches!(event, Event::Command(cmd) if cmd.is(BEGIN_EDITING)) {
-            return self.begin(ctx, data);
+            return data.with_mut(|data| self.begin(ctx, data));
         }
 
         if self.is_editing {
             // if we reject an edit we want to reset the selection
             let pre_sel = *self.inner.editor().selection();
             match event {
-                Event::Command(cmd) if cmd.is(COMPLETE_EDITING) => return self.complete(ctx, data),
-                Event::Command(cmd) if cmd.is(CANCEL_EDITING) => return self.cancel(ctx, data),
+                    
+                Event::Command(cmd) if cmd.is(COMPLETE_EDITING) => return data.with_mut(|data| self.complete(ctx, data)),
+                Event::Command(cmd) if cmd.is(CANCEL_EDITING) => return data.with_mut(|data| self.cancel(ctx, data)),
                 Event::KeyDown(k_e) if HotKey::new(None, KbKey::Enter).matches(k_e) => {
                     ctx.set_handled();
-                    self.complete(ctx, data);
+                    data.with_mut(|data| self.complete(ctx, data));
                     return;
                 }
                 Event::KeyDown(k_e) if HotKey::new(None, KbKey::Escape).matches(k_e) => {
                     ctx.set_handled();
-                    self.cancel(ctx, data);
+                    data.with_mut(|data| self.cancel(ctx, data));
                     return;
                 }
                 event => {
-                    self.inner.event(ctx, event, &mut self.buffer, env);
+                    self.inner.event(ctx, event, &mut IdWrap::new(&mut self.buffer), env);
                 }
             }
             // if an edit occured, validate it with the formatter
@@ -794,8 +801,8 @@ impl<T: Data> Widget<T> for ValueTextBox<T> {
 
                     if self.update_data_while_editing && !validation.is_err() {
                         if let Ok(new_data) = self.formatter.value(&self.buffer) {
-                            *data = new_data;
-                            self.last_known_data = Some(data.clone());
+                            self.last_known_data = Some(new_data.clone());
+                            data.with_mut(|data| *data = new_data);
                         }
                     }
                 }
@@ -809,12 +816,12 @@ impl<T: Data> Widget<T> for ValueTextBox<T> {
                 ctx.request_update();
             }
         } else if let Event::MouseDown(_) = event {
-            self.begin(ctx, data);
+            data.with_mut(|data| self.begin(ctx, data));
             // we need to rebuild immediately here in order for the click
             // to be handled with the most recent text.
             self.inner
                 .force_rebuild(self.buffer.clone(), ctx.text(), env);
-            self.inner.event(ctx, event, &mut self.buffer, env);
+            self.inner.event(ctx, event, &mut IdWrap::new(&mut self.buffer), env);
         }
     }
 

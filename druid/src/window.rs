@@ -20,7 +20,7 @@ use std::mem;
 // Automatically defaults to std::time::Instant on non Wasm platforms
 use instant::Instant;
 
-use crate::piet::{Piet, RenderContext};
+use crate::{piet::{Piet, RenderContext}, widget::IdWrap};
 use crate::shell::{Counter, Cursor, Region, WindowHandle};
 
 use crate::app::PendingWindow;
@@ -219,7 +219,8 @@ impl<T: Data> Window<T> {
                 is_root: true,
             };
 
-            self.root.event(&mut ctx, &event, data, env);
+            self.root.event(&mut ctx, &event, &mut IdWrap::new(data), env);
+
             if !ctx.notifications.is_empty() {
                 log::info!("{} unhandled notifications:", ctx.notifications.len());
                 for (i, n) in ctx.notifications.iter().enumerate() {

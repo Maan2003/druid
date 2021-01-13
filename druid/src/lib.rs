@@ -164,7 +164,7 @@ mod localization;
 mod menu;
 mod mouse;
 pub mod scroll_component;
-mod sub_window;
+// mod sub_window;
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests;
@@ -208,7 +208,7 @@ pub use menu::{sys as platform_menus, ContextMenu, MenuDesc, MenuItem};
 pub use mouse::MouseEvent;
 pub use text::{ArcStr, FontDescriptor, TextLayout};
 pub use util::Handled;
-pub use widget::{Widget, WidgetExt, WidgetId};
+pub use widget::{AsRefMut, Widget, WidgetExt, WidgetId};
 pub use win_handler::DruidHandler;
 pub use window::{Window, WindowId};
 

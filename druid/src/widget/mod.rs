@@ -95,7 +95,7 @@ pub use tabs::{TabInfo, Tabs, TabsEdge, TabsPolicy, TabsState, TabsTransition};
 pub use textbox::{TextBox, TextBoxEvent, ValidationDelegate, ValueTextBox};
 pub use view_switcher::ViewSwitcher;
 #[doc(hidden)]
-pub use widget::{Widget, WidgetId};
+pub use widget::{AsRefMut, Widget, WidgetId, IdWrap};
 #[doc(hidden)]
 pub use widget_ext::WidgetExt;
 pub use widget_wrapper::WidgetWrapper;
@@ -125,6 +125,6 @@ pub mod prelude {
     #[doc(hidden)]
     pub use crate::{
         BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
-        RenderContext, Size, UpdateCtx, Widget, WidgetId,
+        RenderContext, Size, UpdateCtx, Widget, WidgetId,AsRefMut
     };
 }

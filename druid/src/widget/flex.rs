@@ -596,7 +596,7 @@ impl<T: Data> Flex<T> {
 }
 
 impl<T: Data> Widget<T> for Flex<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         for child in &mut self.children {
             child.widget.event(ctx, event, data, env);
         }
@@ -893,7 +893,7 @@ impl Iterator for Spacing {
 }
 
 impl<T: Data> Widget<T> for Spacer {
-    fn event(&mut self, _: &mut EventCtx, _: &Event, _: &mut T, _: &Env) {}
+    fn event(&mut self, _: &mut EventCtx, _: &Event, _: &mut dyn AsRefMut<T>, _: &Env) {}
     fn lifecycle(&mut self, _: &mut LifeCycleCtx, _: &LifeCycle, _: &T, _: &Env) {}
     fn update(&mut self, _: &mut UpdateCtx, _: &T, _: &T, _: &Env) {}
     fn layout(&mut self, _: &mut LayoutCtx, _: &BoxConstraints, _: &T, env: &Env) -> Size {

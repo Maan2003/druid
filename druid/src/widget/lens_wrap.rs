@@ -69,6 +69,30 @@ impl<T, U, L, W> LensWrap<T, U, L, W> {
     }
 }
 
+struct LensAsMutRef<'a, T, L> {
+    lens: &'a L,
+    value: &'a mut dyn AsRefMut<T>,
+}
+
+impl<T, U, L: Lens<T, U>> AsRefMut<U> for LensAsMutRef<'_, T, L> {
+    fn _with_mut(&mut self, f: &mut dyn FnMut(&mut U)) {
+        let lens = self.lens;
+        self.value._with_mut(&mut |value| {
+            lens.with_mut(value, |inner_value| {
+                f(inner_value);
+            });
+        })
+    }
+
+    fn _with_ref(&self, f: &mut dyn FnMut(&U)) {
+        self.value._with_ref(&mut |value| {
+            self.lens.with(value, |inner_value| {
+                f(inner_value);
+            });
+        })
+    }
+}
+
 impl<T, U, L, W> Widget<T> for LensWrap<T, U, L, W>
 where
     T: Data,
@@ -76,10 +100,13 @@ where
     L: Lens<T, U>,
     W: Widget<U>,
 {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         let inner = &mut self.inner;
-        self.lens
-            .with_mut(data, |data| inner.event(ctx, event, data, env))
+        let mut data = LensAsMutRef {
+            lens: &self.lens,
+            value: data,
+        };
+        self.inner.event(ctx, event, &mut data, env);
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {

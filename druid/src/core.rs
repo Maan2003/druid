@@ -16,12 +16,14 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use crate::bloom::Bloom;
-use crate::command::sys::{CLOSE_WINDOW, SUB_WINDOW_HOST_TO_PARENT, SUB_WINDOW_PARENT_TO_HOST};
+use crate::command::sys::{
+    CLOSE_WINDOW, SUB_WINDOW_HOST_TO_PARENT, /*, SUB_WINDOW_PARENT_TO_HOST*/
+};
 use crate::contexts::ContextState;
 use crate::kurbo::{Affine, Insets, Point, Rect, Shape, Size, Vec2};
-use crate::sub_window::SubWindowUpdate;
+// use crate::sub_window::SubWindowUpdate;
 use crate::util::ExtendDrain;
+use crate::{bloom::Bloom, AsRefMut};
 use crate::{
     ArcStr, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx, InternalEvent,
     InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, Notification, PaintCtx, Region,
@@ -354,6 +356,38 @@ impl<T, W: Widget<T>> WidgetPod<T, W> {
     /// Returns `true` if the hot state changed.
     ///
     /// The provided `child_state` should be merged up if this returns `true`.
+    fn set_hot_state_ref_mut(
+        child: &mut W,
+        child_state: &mut WidgetState,
+        state: &mut ContextState,
+        rect: Rect,
+        mouse_pos: Option<Point>,
+        data: &dyn AsRefMut<T>,
+        env: &Env,
+    ) -> bool {
+        let had_hot = child_state.is_hot;
+        child_state.is_hot = match mouse_pos {
+            Some(pos) => rect.winding(pos) != 0,
+            None => false,
+        };
+        if had_hot != child_state.is_hot {
+            let hot_changed_event = LifeCycle::HotChanged(child_state.is_hot);
+            let mut child_ctx = LifeCycleCtx {
+                state,
+                widget_state: child_state,
+            };
+            data.with_ref(|data| {
+                child.lifecycle(&mut child_ctx, &hot_changed_event, data, env);
+            });
+            // if hot changes and we're showing widget ids, always repaint
+            if env.get(Env::DEBUG_WIDGET_ID) {
+                child_ctx.request_paint();
+            }
+            return true;
+        }
+        false
+    }
+
     fn set_hot_state(
         child: &mut W,
         child_state: &mut WidgetState,
@@ -596,7 +630,13 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
     /// the event.
     ///
     /// [`event`]: trait.Widget.html#tymethod.event
-    pub fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    pub fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut dyn AsRefMut<T>,
+        env: &Env,
+    ) {
         if !self.is_initialized() {
             debug_panic!(
                 "{:?}: event method called before receiving WidgetAdded.",
@@ -631,7 +671,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
         let recurse = match event {
             Event::Internal(internal) => match internal {
                 InternalEvent::MouseLeave => {
-                    let hot_changed = WidgetPod::set_hot_state(
+                    let hot_changed = WidgetPod::set_hot_state_ref_mut(
                         &mut self.inner,
                         &mut self.state,
                         ctx.state,
@@ -640,6 +680,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                         data,
                         env,
                     );
+
                     had_active || hot_changed
                 }
                 InternalEvent::TargetedCommand(cmd) => {
@@ -681,7 +722,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 ctx.is_root
             }
             Event::MouseDown(mouse_event) => {
-                WidgetPod::set_hot_state(
+                WidgetPod::set_hot_state_ref_mut(
                     &mut self.inner,
                     &mut self.state,
                     ctx.state,
@@ -700,7 +741,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 }
             }
             Event::MouseUp(mouse_event) => {
-                WidgetPod::set_hot_state(
+                WidgetPod::set_hot_state_ref_mut(
                     &mut self.inner,
                     &mut self.state,
                     ctx.state,
@@ -719,7 +760,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 }
             }
             Event::MouseMove(mouse_event) => {
-                let hot_changed = WidgetPod::set_hot_state(
+                let hot_changed = WidgetPod::set_hot_state_ref_mut(
                     &mut self.inner,
                     &mut self.state,
                     ctx.state,
@@ -741,7 +782,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 }
             }
             Event::Wheel(mouse_event) => {
-                WidgetPod::set_hot_state(
+                WidgetPod::set_hot_state_ref_mut(
                     &mut self.inner,
                     &mut self.state,
                     ctx.state,
@@ -786,15 +827,15 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
             inner_ctx.widget_state.has_active = false;
 
             match inner_event {
-                Event::Command(cmd) if cmd.is(SUB_WINDOW_HOST_TO_PARENT) => {
-                    if let Some(update) = cmd
-                        .get_unchecked(SUB_WINDOW_HOST_TO_PARENT)
-                        .downcast_ref::<T>()
-                    {
-                        *data = (*update).clone();
-                    }
-                    ctx.is_handled = true
-                }
+                // Event::Command(cmd) if cmd.is(SUB_WINDOW_HOST_TO_PARENT) => {
+                //     if let Some(update) = cmd
+                //         .get_unchecked(SUB_WINDOW_HOST_TO_PARENT)
+                //         .downcast_ref::<T>()
+                //     {
+                //         *data.as_mut() = (*update).clone();
+                //     }
+                //     ctx.is_handled = true
+                // }
                 _ => {
                     self.inner.event(&mut inner_ctx, &inner_event, data, env);
 
@@ -821,7 +862,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
         &mut self,
         ctx: &mut EventCtx,
         notifications: &mut VecDeque<Notification>,
-        data: &mut T,
+        data: &mut dyn AsRefMut<T>,
         env: &Env,
     ) {
         let EventCtx {
@@ -1011,20 +1052,20 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
 
         if ctx.env_changed() || data_changed {
             for (_, host) in &self.state.sub_window_hosts {
-                let update = SubWindowUpdate {
-                    data: if data_changed {
-                        Some(Box::new((*data).clone()))
-                    } else {
-                        None
-                    },
-                    env: if ctx.env_changed() {
-                        Some(env.clone())
-                    } else {
-                        None
-                    },
-                };
-                let command = Command::new(SUB_WINDOW_PARENT_TO_HOST, update, *host);
-                ctx.submit_command(command);
+                // let update = SubWindowUpdate {
+                //     data: if data_changed {
+                //         Some(Box::new((*data).clone()))
+                //     } else {
+                //         None
+                //     },
+                //     env: if ctx.env_changed() {
+                //         Some(env.clone())
+                //     } else {
+                //         None
+                //     },
+                // };
+                // let command = Command::new(SUB_WINDOW_PARENT_TO_HOST, update, *host);
+                // ctx.submit_command(command);
             }
         }
 

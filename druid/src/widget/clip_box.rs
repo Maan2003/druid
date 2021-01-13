@@ -274,7 +274,7 @@ impl<T, W: Widget<T>> ClipBox<T, W> {
 }
 
 impl<T: Data, W: Widget<T>> Widget<T> for ClipBox<T, W> {
-    fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, ev: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         let viewport = ctx.size().to_rect();
         let force_event = self.child.is_hot() || self.child.has_active();
         if let Some(child_event) =

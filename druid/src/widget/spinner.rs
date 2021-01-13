@@ -16,9 +16,9 @@
 
 use std::f64::consts::PI;
 
-use druid::kurbo::Line;
-use druid::widget::prelude::*;
-use druid::{theme, Color, Data, KeyOrValue, Point, Vec2};
+use crate::kurbo::Line;
+use crate::widget::prelude::*;
+use crate::{theme, Color, Data, KeyOrValue, Point, Vec2};
 
 /// An animated spinner widget for showing a loading state.
 ///
@@ -67,7 +67,7 @@ impl Default for Spinner {
 }
 
 impl<T: Data> Widget<T> for Spinner {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut T, _env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut dyn AsRefMut<T>, _env: &Env) {
         if let Event::AnimFrame(interval) = event {
             self.t += (*interval as f64) * 1e-9;
             if self.t >= 1.0 {

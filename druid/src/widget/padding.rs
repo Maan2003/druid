@@ -70,7 +70,7 @@ impl<T> Padding<T> {
 }
 
 impl<T: Data> Widget<T> for Padding<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         self.child.event(ctx, event, data, env)
     }
 

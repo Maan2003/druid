@@ -61,7 +61,7 @@ impl<T: Data> Radio<T> {
 }
 
 impl<T: Data + PartialEq> Widget<T> for Radio<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, _env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, _env: &Env) {
         match event {
             Event::MouseDown(_) => {
                 ctx.set_active(true);
@@ -71,7 +71,7 @@ impl<T: Data + PartialEq> Widget<T> for Radio<T> {
                 if ctx.is_active() {
                     ctx.set_active(false);
                     if ctx.is_hot() {
-                        *data = self.variant.clone();
+                        data.with_mut(|data| *data = self.variant.clone());
                     }
                     ctx.request_paint();
                 }

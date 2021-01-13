@@ -127,7 +127,7 @@ impl<T> SizedBox<T> {
 }
 
 impl<T: Data> Widget<T> for SizedBox<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         if let Some(ref mut inner) = self.inner {
             inner.event(ctx, event, data, env);
         }

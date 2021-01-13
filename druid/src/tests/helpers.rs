@@ -22,7 +22,7 @@ use std::rc::Rc;
 
 use crate::*;
 
-pub type EventFn<S, T> = dyn FnMut(&mut S, &mut EventCtx, &Event, &mut T, &Env);
+pub type EventFn<S, T> = dyn FnMut(&mut S, &mut EventCtx, &Event, &mut dyn AsRefMut<T>, &Env);
 pub type LifeCycleFn<S, T> = dyn FnMut(&mut S, &mut LifeCycleCtx, &LifeCycle, &T, &Env);
 pub type UpdateFn<S, T> = dyn FnMut(&mut S, &mut UpdateCtx, &T, &T, &Env);
 pub type LayoutFn<S, T> = dyn FnMut(&mut S, &mut LayoutCtx, &BoxConstraints, &T, &Env) -> Size;
@@ -115,7 +115,7 @@ impl<S, T> ModularWidget<S, T> {
 
     pub fn event_fn(
         mut self,
-        f: impl FnMut(&mut S, &mut EventCtx, &Event, &mut T, &Env) + 'static,
+        f: impl FnMut(&mut S, &mut EventCtx, &Event, &mut dyn AsRefMut<T>, &Env) + 'static,
     ) -> Self {
         self.event = Some(Box::new(f));
         self
@@ -152,7 +152,7 @@ impl<S, T> ModularWidget<S, T> {
 }
 
 impl<S, T: Data> Widget<T> for ModularWidget<S, T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         if let Some(f) = self.event.as_mut() {
             f(&mut self.state, ctx, event, data, env)
         }
@@ -201,7 +201,7 @@ impl<T: Data> ReplaceChild<T> {
 }
 
 impl<T: Data> Widget<T> for ReplaceChild<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         if let Event::Command(cmd) = event {
             if cmd.is(REPLACE_CHILD) {
                 self.inner = WidgetPod::new((self.replacer)());
@@ -266,7 +266,7 @@ impl Recording {
 }
 
 impl<T: Data, W: Widget<T>> Widget<T> for Recorder<W> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         self.recording.push(Record::E(event.clone()));
         self.inner.event(ctx, event, data, env)
     }

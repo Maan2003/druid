@@ -50,6 +50,76 @@ use super::prelude::*;
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct WidgetId(NonZeroU64);
 
+pub trait AsRefMut<T: ?Sized> {
+    fn _with_ref(&self, f: &mut dyn FnMut(&T));
+    fn _with_mut(&mut self, f: &mut dyn FnMut(&mut T));
+}
+
+impl<T: ?Sized> dyn AsRefMut<T> + '_ {
+    pub fn with_ref<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        let mut ret = None;
+        let mut f = Some(f);
+        self._with_ref(&mut |data| {
+            ret = Some((f.take().unwrap())(data));
+        });
+        ret.unwrap()
+    }
+
+    pub fn read(&self) -> T
+    where
+        T: Sized + Copy,
+    {
+        self.with_ref(|x| *x)
+    }
+
+    pub fn set(&mut self, value: T)
+    where
+        T: Sized,
+    {
+        self.with_mut(|x| *x = value);
+    }
+
+    pub fn with_mut<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
+        let mut ret = None;
+        let mut f = Some(f);
+        self._with_mut(&mut |data| {
+            ret = Some((f.take().unwrap())(data));
+        });
+        ret.unwrap()
+    }
+}
+
+pub struct IdWrap<'a, T: ?Sized> {
+    pub value: &'a mut T,
+    mut_requested: bool,
+}
+
+impl<'a, T: ?Sized> IdWrap<'a, T> {
+    pub fn new(value: &'a mut T) -> Self {
+        Self {
+            value,
+            mut_requested: false,
+        }
+    }
+
+    pub fn mut_requested(&self) -> bool {
+        self.mut_requested
+    }
+}
+
+impl<T: ?Sized> AsRefMut<T> for IdWrap<'_, T> {
+    fn _with_ref(&self, f: &mut dyn FnMut(&T)) {
+        f(&*self.value);
+    }
+
+    fn _with_mut(&mut self, f: &mut dyn FnMut(&mut T)) {
+        self.mut_requested = true;
+        f(self.value);
+    }
+}
+
+// impl<T, U> AsRefMut<T> for U where U: AsRef<T> + AsMut<T> {}
+
 /// The trait implemented by all widgets.
 ///
 /// All appearance and behavior for a widget is encapsulated in an
@@ -100,7 +170,7 @@ pub trait Widget<T> {
     /// [`Event`]: enum.Event.html
     /// [`EventCtx`]: struct.EventCtx.html
     /// [`Command`]: struct.Command.html
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env);
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env);
 
     /// Handle a life cycle notification.
     ///
@@ -235,7 +305,7 @@ impl WidgetId {
 }
 
 impl<T> Widget<T> for Box<dyn Widget<T>> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         self.deref_mut().event(ctx, event, data, env)
     }
 

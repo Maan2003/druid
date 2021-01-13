@@ -64,7 +64,7 @@ pub trait Controller<T, W: Widget<T>> {
     /// Analogous to [`Widget::event`].
     ///
     /// [`Widget::event`]: ../trait.Widget.html#tymethod.event
-    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         child.event(ctx, event, data, env)
     }
 
@@ -107,7 +107,7 @@ impl<W, C> ControllerHost<W, C> {
 }
 
 impl<T, W: Widget<T>, C: Controller<T, W>> Widget<T> for ControllerHost<W, C> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut dyn AsRefMut<T>, env: &Env) {
         self.controller
             .event(&mut self.widget, ctx, event, data, env)
     }
