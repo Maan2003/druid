@@ -23,7 +23,7 @@ use crate::kurbo::{Affine, Insets, Point, Rect, Shape, Size, Vec2};
 use crate::sub_window::SubWindowUpdate;
 use crate::util::ExtendDrain;
 use crate::{
-    ArcStr, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx, InternalEvent,
+    dbg, ArcStr, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx, InternalEvent,
     InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, Notification, PaintCtx, Region,
     RenderContext, Target, TextLayout, TimerToken, UpdateCtx, Widget, WidgetId, WindowId,
 };
@@ -137,6 +137,7 @@ pub(crate) struct WidgetState {
 
     // Port -> Host
     pub(crate) sub_window_hosts: Vec<(WindowId, WidgetId)>,
+    pub(crate) highlight: bool,
 }
 
 /// Methods by which a widget can attempt to change focus state.
@@ -429,6 +430,11 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
 
         if !debug_ids && env.get(Env::DEBUG_PAINT) {
             self.debug_paint_layout_bounds(&mut inner_ctx, env);
+        }
+
+        if self.state.highlight {
+            let rect = inner_ctx.size().to_rect();
+            inner_ctx.fill(rect, &Color::RED.with_alpha(0.1));
         }
 
         ctx.z_ops.append(&mut inner_ctx.z_ops);
@@ -803,7 +809,25 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                     }
                     ctx.is_handled = true
                 }
+                Event::Command(cmd)
+                    if cmd.is(dbg::HIGHLIGHT)
+                        && cmd.target() == Target::Widget(inner_ctx.widget_id()) =>
+                {
+                    dbg!("here");
+                    inner_ctx.widget_state.highlight = *cmd.get_unchecked(dbg::HIGHLIGHT);
+                    inner_ctx.request_paint();
+                }
                 _ => {
+                    let dbg_window = dbg::window_id();
+                    if inner_ctx.window_id() != dbg_window {
+                        let cmd_data = (
+                            inner_ctx.state.event_id,
+                            inner_ctx.widget_id(),
+                            inner_event.clone(),
+                        );
+                        inner_ctx.submit_command(dbg::EVENT.with(cmd_data).to(dbg_window));
+                    }
+
                     self.inner.event(&mut inner_ctx, &inner_event, data, env);
 
                     inner_ctx.widget_state.has_active |= inner_ctx.widget_state.is_active;
@@ -1100,6 +1124,7 @@ impl WidgetState {
             request_anim: false,
             request_update: false,
             request_focus: None,
+            highlight: false,
             focus_chain: Vec::new(),
             children: Bloom::new(),
             children_changed: false,
@@ -1211,7 +1236,7 @@ mod tests {
     use crate::ext_event::ExtEventHost;
     use crate::text::format::ParseFormatter;
     use crate::widget::{Flex, Scroll, Split, TextBox};
-    use crate::{WidgetExt, WindowHandle, WindowId};
+    use crate::{EventId, WidgetExt, WindowHandle, WindowId};
 
     const ID_1: WidgetId = WidgetId::reserved(0);
     const ID_2: WidgetId = WidgetId::reserved(1);
@@ -1255,6 +1280,7 @@ mod tests {
             &window,
             WindowId::next(),
             None,
+            EventId::new()
         );
 
         let mut ctx = LifeCycleCtx {

@@ -30,14 +30,14 @@ use crate::util::ExtendDrain;
 use crate::widget::LabelText;
 use crate::win_handler::RUN_COMMANDS_TOKEN;
 use crate::{
-    BoxConstraints, Command, Data, Env, Event, EventCtx, ExtEventSink, Handled, InternalEvent,
-    InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, MenuDesc, PaintCtx, Point, Size,
-    TimerToken, UpdateCtx, Widget, WidgetId, WidgetPod,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, EventId, ExtEventSink, Handled,
+    InternalEvent, InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, MenuDesc, PaintCtx,
+    Point, Size, TimerToken, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 
 /// A unique identifier for a window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct WindowId(u64);
+pub struct WindowId(pub(crate) u64);
 
 /// Per-window state not owned by user code.
 pub struct Window<T> {
@@ -137,6 +137,7 @@ impl<T: Data> Window<T> {
         data: &T,
         env: &Env,
         process_commands: bool,
+        event_id: EventId,
     ) {
         // If children are changed during the handling of an event,
         // we need to send RouteWidgetAdded now, so that they are ready for update/layout.
@@ -147,6 +148,7 @@ impl<T: Data> Window<T> {
                 data,
                 env,
                 false,
+                event_id,
             );
         }
         // Add all the requested timers to the window's timers map.
@@ -176,6 +178,7 @@ impl<T: Data> Window<T> {
         event: Event,
         data: &mut T,
         env: &Env,
+        event_id: EventId,
     ) -> Handled {
         match &event {
             Event::WindowSize(size) => self.size = *size,
@@ -205,13 +208,20 @@ impl<T: Data> Window<T> {
                 data,
                 env,
                 false,
+                event_id,
             );
         }
 
         let mut widget_state = WidgetState::new(self.root.id(), Some(self.size));
         let is_handled = {
-            let mut state =
-                ContextState::new::<T>(queue, &self.ext_handle, &self.handle, self.id, self.focus);
+            let mut state = ContextState::new::<T>(
+                queue,
+                &self.ext_handle,
+                &self.handle,
+                self.id,
+                self.focus,
+                event_id,
+            );
             let mut notifications = VecDeque::new();
             let mut ctx = EventCtx {
                 state: &mut state,
@@ -243,7 +253,7 @@ impl<T: Data> Window<T> {
             // Only send RouteFocusChanged in case there's actual change
             if old != new {
                 let event = LifeCycle::Internal(InternalLifeCycle::RouteFocusChanged { old, new });
-                self.lifecycle(queue, &event, data, env, false);
+                self.lifecycle(queue, &event, data, env, false, event_id);
                 self.focus = new;
             }
         }
@@ -263,10 +273,10 @@ impl<T: Data> Window<T> {
         ) {
             // Because our initial size can be zero, the window system won't ask us to paint.
             // So layout ourselves and hopefully we resize
-            self.layout(queue, data, env);
+            self.layout(queue, data, env, event_id);
         }
 
-        self.post_event_processing(&mut widget_state, queue, data, env, false);
+        self.post_event_processing(&mut widget_state, queue, data, env, false, event_id);
 
         is_handled
     }
@@ -278,24 +288,43 @@ impl<T: Data> Window<T> {
         data: &T,
         env: &Env,
         process_commands: bool,
+        event_id: EventId,
     ) {
         let mut widget_state = WidgetState::new(self.root.id(), Some(self.size));
-        let mut state =
-            ContextState::new::<T>(queue, &self.ext_handle, &self.handle, self.id, self.focus);
+        let mut state = ContextState::new::<T>(
+            queue,
+            &self.ext_handle,
+            &self.handle,
+            self.id,
+            self.focus,
+            event_id,
+        );
         let mut ctx = LifeCycleCtx {
             state: &mut state,
             widget_state: &mut widget_state,
         };
         self.root.lifecycle(&mut ctx, event, data, env);
-        self.post_event_processing(&mut widget_state, queue, data, env, process_commands);
+        self.post_event_processing(&mut widget_state, queue, data, env, process_commands, event_id);
     }
 
-    pub(crate) fn update(&mut self, queue: &mut CommandQueue, data: &T, env: &Env) {
+    pub(crate) fn update(
+        &mut self,
+        queue: &mut CommandQueue,
+        data: &T,
+        env: &Env,
+        event_id: EventId,
+    ) {
         self.update_title(data, env);
 
         let mut widget_state = WidgetState::new(self.root.id(), Some(self.size));
-        let mut state =
-            ContextState::new::<T>(queue, &self.ext_handle, &self.handle, self.id, self.focus);
+        let mut state = ContextState::new::<T>(
+            queue,
+            &self.ext_handle,
+            &self.handle,
+            self.id,
+            self.focus,
+            event_id,
+        );
         let mut update_ctx = UpdateCtx {
             widget_state: &mut widget_state,
             state: &mut state,
@@ -308,7 +337,7 @@ impl<T: Data> Window<T> {
             self.handle.set_cursor(cursor);
         }
 
-        self.post_event_processing(&mut widget_state, queue, data, env, false);
+        self.post_event_processing(&mut widget_state, queue, data, env, false, event_id);
     }
 
     pub(crate) fn invalidate_and_finalize(&mut self) {
@@ -335,7 +364,13 @@ impl<T: Data> Window<T> {
     }
 
     /// Get ready for painting, by doing layout and sending an `AnimFrame` event.
-    pub(crate) fn prepare_paint(&mut self, queue: &mut CommandQueue, data: &mut T, env: &Env) {
+    pub(crate) fn prepare_paint(
+        &mut self,
+        queue: &mut CommandQueue,
+        data: &mut T,
+        env: &Env,
+        event_id: EventId,
+    ) {
         let now = Instant::now();
         // TODO: this calculation uses wall-clock time of the paint call, which
         // potentially has jitter.
@@ -345,7 +380,7 @@ impl<T: Data> Window<T> {
         let elapsed_ns = last.map(|t| now.duration_since(t).as_nanos()).unwrap_or(0) as u64;
 
         if self.wants_animation_frame() {
-            self.event(queue, Event::AnimFrame(elapsed_ns), data, env);
+            self.event(queue, Event::AnimFrame(elapsed_ns), data, env, event_id);
             self.last_anim = Some(now);
         }
     }
@@ -357,22 +392,29 @@ impl<T: Data> Window<T> {
         queue: &mut CommandQueue,
         data: &T,
         env: &Env,
+        event_id: EventId,
     ) {
         if self.root.state().needs_layout {
-            self.layout(queue, data, env);
+            self.layout(queue, data, env, event_id);
         }
 
         piet.fill(
             invalid.bounding_box(),
             &env.get(crate::theme::WINDOW_BACKGROUND_COLOR),
         );
-        self.paint(piet, invalid, queue, data, env);
+        self.paint(piet, invalid, queue, data, env, event_id);
     }
 
-    fn layout(&mut self, queue: &mut CommandQueue, data: &T, env: &Env) {
+    fn layout(&mut self, queue: &mut CommandQueue, data: &T, env: &Env, event_id: EventId) {
         let mut widget_state = WidgetState::new(self.root.id(), Some(self.size));
-        let mut state =
-            ContextState::new::<T>(queue, &self.ext_handle, &self.handle, self.id, self.focus);
+        let mut state = ContextState::new::<T>(
+            queue,
+            &self.ext_handle,
+            &self.handle,
+            self.id,
+            self.focus,
+            event_id,
+        );
         let mut layout_ctx = LayoutCtx {
             state: &mut state,
             widget_state: &mut widget_state,
@@ -399,15 +441,22 @@ impl<T: Data> Window<T> {
             data,
             env,
             false,
+            event_id,
         );
-        self.post_event_processing(&mut widget_state, queue, data, env, true);
+        self.post_event_processing(&mut widget_state, queue, data, env, true, event_id);
     }
 
     /// only expose `layout` for testing; normally it is called as part of `do_paint`
     #[cfg(not(target_arch = "wasm32"))]
     #[cfg(test)]
-    pub(crate) fn just_layout(&mut self, queue: &mut CommandQueue, data: &T, env: &Env) {
-        self.layout(queue, data, env)
+    pub(crate) fn just_layout(
+        &mut self,
+        queue: &mut CommandQueue,
+        data: &T,
+        env: &Env,
+        event_id: EventId,
+    ) {
+        self.layout(queue, data, env, event_id)
     }
 
     fn paint(
@@ -417,10 +466,17 @@ impl<T: Data> Window<T> {
         queue: &mut CommandQueue,
         data: &T,
         env: &Env,
+        event_id: EventId,
     ) {
         let widget_state = WidgetState::new(self.root.id(), Some(self.size));
-        let mut state =
-            ContextState::new::<T>(queue, &self.ext_handle, &self.handle, self.id, self.focus);
+        let mut state = ContextState::new::<T>(
+            queue,
+            &self.ext_handle,
+            &self.handle,
+            self.id,
+            self.focus,
+            event_id,
+        );
         let mut ctx = PaintCtx {
             render_ctx: piet,
             state: &mut state,

@@ -289,27 +289,27 @@ impl<T: Data> Harness<'_, T> {
 impl<T: Data> Inner<T> {
     fn event(&mut self, event: Event) {
         self.window
-            .event(&mut self.cmds, event, &mut self.data, &self.env);
+            .event(&mut self.cmds, event, &mut self.data, &self.env, EventId::new());
     }
 
     fn lifecycle(&mut self, event: LifeCycle) {
         self.window
-            .lifecycle(&mut self.cmds, &event, &self.data, &self.env, false);
+            .lifecycle(&mut self.cmds, &event, &self.data, &self.env, false, EventId::new());
     }
 
     fn update(&mut self) {
-        self.window.update(&mut self.cmds, &self.data, &self.env);
+        self.window.update(&mut self.cmds, &self.data, &self.env, EventId::new());
     }
 
     fn layout(&mut self) {
         self.window
-            .just_layout(&mut self.cmds, &self.data, &self.env);
+            .just_layout(&mut self.cmds, &self.data, &self.env, EventId::new());
     }
 
     #[allow(dead_code)]
     fn paint_region(&mut self, piet: &mut Piet, invalid: &Region) {
         self.window
-            .do_paint(piet, &invalid, &mut self.cmds, &self.data, &self.env);
+            .do_paint(piet, &invalid, &mut self.cmds, &self.data, &self.env, EventId::new());
     }
 }
 

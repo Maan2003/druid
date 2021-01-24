@@ -3,6 +3,7 @@ members = [
     "druid",
     "druid-shell",
     "druid-derive",
+    "druid-debugger",
     "docs/book_examples",
     "druid/examples/web",
     "druid/examples/hello_web",
@@ -10,6 +11,10 @@ members = [
 ]
 default-members = [
     "druid",
+    "druid-debugger",
     "druid-shell",
     "druid-derive",
 ]
+
+[patch.'https://github.com/linebender/druid']
+druid = { path = "druid" }

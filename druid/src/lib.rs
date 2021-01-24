@@ -125,7 +125,9 @@
     unsafe_code,
     clippy::trivially_copy_pass_by_ref
 )]
-#![warn(missing_docs)]
+// no warnings for now
+// #![warn(missing_docs)]
+
 #![allow(clippy::new_ret_no_self, clippy::needless_doctest_main)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
@@ -156,6 +158,7 @@ mod command;
 mod contexts;
 mod core;
 mod data;
+pub mod dbg;
 mod dialog;
 mod env;
 mod event;
@@ -211,6 +214,7 @@ pub use util::Handled;
 pub use widget::{Widget, WidgetExt, WidgetId};
 pub use win_handler::DruidHandler;
 pub use window::{Window, WindowId};
+pub use contexts::EventId;
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]

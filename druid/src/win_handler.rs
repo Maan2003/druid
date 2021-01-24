@@ -32,8 +32,8 @@ use crate::ext_event::{ExtEventHost, ExtEventSink};
 use crate::menu::ContextMenu;
 use crate::window::Window;
 use crate::{
-    Command, Data, Env, Event, Handled, InternalEvent, KeyEvent, MenuDesc, PlatformError, Selector,
-    Target, TimerToken, WindowDesc, WindowId,
+    Command, Data, Env, Event, EventId, Handled, InternalEvent, KeyEvent, MenuDesc, PlatformError,
+    Selector, Target, TimerToken, WindowDesc, WindowId,
 };
 
 use crate::app::{PendingWindow, WindowConfig};
@@ -317,11 +317,11 @@ impl<T: Data> Inner<T> {
         }
     }
 
-    fn prepare_paint(&mut self, window_id: WindowId) {
+    fn prepare_paint(&mut self, window_id: WindowId, event_id: EventId) {
         if let Some(win) = self.windows.get_mut(window_id) {
-            win.prepare_paint(&mut self.command_queue, &mut self.data, &self.env);
+            win.prepare_paint(&mut self.command_queue, &mut self.data, &self.env, event_id);
         }
-        self.do_update();
+        self.do_update(event_id);
     }
 
     fn paint(&mut self, window_id: WindowId, piet: &mut Piet, invalid: &Region) {
@@ -332,13 +332,14 @@ impl<T: Data> Inner<T> {
                 &mut self.command_queue,
                 &self.data,
                 &self.env,
+                EventId::new(),
             );
         }
     }
 
-    fn dispatch_cmd(&mut self, cmd: Command) -> Handled {
+    fn dispatch_cmd(&mut self, cmd: Command, event_id: EventId) -> Handled {
         let handled = self.delegate_cmd(&cmd);
-        self.do_update();
+        self.do_update(event_id);
         if handled.is_handled() {
             return handled;
         }
@@ -361,6 +362,7 @@ impl<T: Data> Inner<T> {
                             Event::WindowCloseRequested,
                             &mut self.data,
                             &self.env,
+                            event_id,
                         );
                         if !handled.is_handled() {
                             w.event(
@@ -368,6 +370,7 @@ impl<T: Data> Inner<T> {
                                 Event::WindowDisconnected,
                                 &mut self.data,
                                 &self.env,
+                                event_id,
                             );
                         }
                         handled
@@ -377,6 +380,7 @@ impl<T: Data> Inner<T> {
                             Event::Command(cmd),
                             &mut self.data,
                             &self.env,
+                            event_id,
                         )
                     };
                 }
@@ -386,8 +390,14 @@ impl<T: Data> Inner<T> {
             Target::Widget(id) => {
                 for w in self.windows.iter_mut().filter(|w| w.may_contain_widget(id)) {
                     let event = Event::Internal(InternalEvent::TargetedCommand(cmd.clone()));
-                    if w.event(&mut self.command_queue, event, &mut self.data, &self.env)
-                        .is_handled()
+                    if w.event(
+                        &mut self.command_queue,
+                        event,
+                        &mut self.data,
+                        &self.env,
+                        event_id,
+                    )
+                    .is_handled()
                     {
                         return Handled::Yes;
                     }
@@ -396,8 +406,14 @@ impl<T: Data> Inner<T> {
             Target::Global => {
                 for w in self.windows.iter_mut() {
                     let event = Event::Command(cmd.clone());
-                    if w.event(&mut self.command_queue, event, &mut self.data, &self.env)
-                        .is_handled()
+                    if w.event(
+                        &mut self.command_queue,
+                        event,
+                        &mut self.data,
+                        &self.env,
+                        event_id,
+                    )
+                    .is_handled()
                     {
                         return Handled::Yes;
                     }
@@ -410,7 +426,7 @@ impl<T: Data> Inner<T> {
         Handled::No
     }
 
-    fn do_window_event(&mut self, source_id: WindowId, event: Event) -> Handled {
+    fn do_window_event(&mut self, source_id: WindowId, event: Event, event_id: EventId) -> Handled {
         match event {
             Event::Command(..) | Event::Internal(InternalEvent::TargetedCommand(..)) => {
                 panic!("commands should be dispatched via dispatch_cmd");
@@ -425,7 +441,13 @@ impl<T: Data> Inner<T> {
         };
 
         if let Some(win) = self.windows.get_mut(source_id) {
-            win.event(&mut self.command_queue, event, &mut self.data, &self.env)
+            win.event(
+                &mut self.command_queue,
+                event,
+                &mut self.data,
+                &self.env,
+                event_id,
+            )
         } else {
             Handled::No
         }
@@ -463,10 +485,10 @@ impl<T: Data> Inner<T> {
         }
     }
 
-    fn do_update(&mut self) {
+    fn do_update(&mut self, event_id: EventId) {
         // we send `update` to all windows, not just the active one:
         for window in self.windows.iter_mut() {
-            window.update(&mut self.command_queue, &self.data, &self.env);
+            window.update(&mut self.command_queue, &self.data, &self.env, event_id);
         }
         self.invalidate_and_finalize();
     }
@@ -534,14 +556,19 @@ impl<T: Data> AppState<T> {
     /// This is principally because in certain cases (such as keydown on Windows)
     /// the OS needs to know if an event was handled.
     fn do_window_event(&mut self, event: Event, window_id: WindowId) -> Handled {
-        let result = self.inner.borrow_mut().do_window_event(window_id, event);
-        self.process_commands();
-        self.inner.borrow_mut().do_update();
+        let event_id = EventId::new();
+        let result = self
+            .inner
+            .borrow_mut()
+            .do_window_event(window_id, event, event_id);
+        self.process_commands(event_id);
+        self.inner.borrow_mut().do_update(event_id);
         result
     }
 
     fn prepare_paint_window(&mut self, window_id: WindowId) {
-        self.inner.borrow_mut().prepare_paint(window_id);
+        let event_id = EventId::new();
+        self.inner.borrow_mut().prepare_paint(window_id, event_id);
     }
 
     fn paint_window(&mut self, window_id: WindowId, piet: &mut Piet, invalid: &Region) {
@@ -549,35 +576,36 @@ impl<T: Data> AppState<T> {
     }
 
     fn idle(&mut self, token: IdleToken) {
+        let event_id = EventId::new();
         match token {
             RUN_COMMANDS_TOKEN => {
-                self.process_commands();
-                self.inner.borrow_mut().do_update();
+                self.process_commands(event_id);
+                self.inner.borrow_mut().do_update(event_id);
             }
             EXT_EVENT_IDLE_TOKEN => {
-                self.process_ext_events();
-                self.process_commands();
-                self.inner.borrow_mut().do_update();
+                self.process_ext_events(event_id);
+                self.process_commands(event_id);
+                self.inner.borrow_mut().do_update(event_id);
             }
             other => log::warn!("unexpected idle token {:?}", other),
         }
     }
 
-    fn process_commands(&mut self) {
+    fn process_commands(&mut self, event_id: EventId) {
         loop {
             let next_cmd = self.inner.borrow_mut().command_queue.pop_front();
             match next_cmd {
-                Some(cmd) => self.handle_cmd(cmd),
+                Some(cmd) => self.handle_cmd(cmd, event_id),
                 None => break,
             }
         }
     }
 
-    fn process_ext_events(&mut self) {
+    fn process_ext_events(&mut self, event_id: EventId) {
         loop {
             let ext_cmd = self.inner.borrow_mut().ext_event_host.recv();
             match ext_cmd {
-                Some(cmd) => self.handle_cmd(cmd),
+                Some(cmd) => self.handle_cmd(cmd, event_id),
                 None => break,
             }
         }
@@ -600,13 +628,14 @@ impl<T: Data> AppState<T> {
             }
             None => log::warn!("No command for menu id {}", cmd_id),
         }
-        self.process_commands();
-        self.inner.borrow_mut().do_update();
+        let event_id = EventId::new();
+        self.process_commands(event_id);
+        self.inner.borrow_mut().do_update(event_id);
     }
 
     /// Handle a command. Top level commands (e.g. for creating and destroying
     /// windows) have their logic here; other commands are passed to the window.
-    fn handle_cmd(&mut self, cmd: Command) {
+    fn handle_cmd(&mut self, cmd: Command, event_id: EventId) {
         use Target as T;
         match cmd.target() {
             // these are handled the same no matter where they come from
@@ -630,12 +659,12 @@ impl<T: Data> AppState<T> {
             T::Window(id) if cmd.is(sys_cmd::SHOW_SAVE_PANEL) => self.show_save_panel(cmd, id),
             T::Window(id) if cmd.is(sys_cmd::CONFIGURE_WINDOW) => self.configure_window(cmd, id),
             T::Window(id) if cmd.is(sys_cmd::CLOSE_WINDOW) => {
-                if !self.inner.borrow_mut().dispatch_cmd(cmd).is_handled() {
+                if !self.inner.borrow_mut().dispatch_cmd(cmd, event_id).is_handled() {
                     self.request_close_window(id);
                 }
             }
             T::Window(id) if cmd.is(sys_cmd::SHOW_WINDOW) => self.show_window(id),
-            T::Window(id) if cmd.is(sys_cmd::PASTE) => self.do_paste(id),
+            T::Window(id) if cmd.is(sys_cmd::PASTE) => self.do_paste(id, event_id),
             _ if cmd.is(sys_cmd::CLOSE_WINDOW) => {
                 log::warn!("CLOSE_WINDOW command must target a window.")
             }
@@ -643,7 +672,7 @@ impl<T: Data> AppState<T> {
                 log::warn!("SHOW_WINDOW command must target a window.")
             }
             _ => {
-                let handled = self.inner.borrow_mut().dispatch_cmd(cmd.clone());
+                let handled = self.inner.borrow_mut().dispatch_cmd(cmd.clone(), event_id);
                 if !handled.is_handled() && cmd.must_be_used() {
                     log::warn!("{:?} was not handled.", cmd);
                 }
@@ -714,10 +743,11 @@ impl<T: Data> AppState<T> {
         } else {
             log::error!("unknown dialog token");
         }
+        let event_id = EventId::new();
 
         std::mem::drop(inner);
-        self.process_commands();
-        self.inner.borrow_mut().do_update();
+        self.process_commands(event_id);
+        self.inner.borrow_mut().do_update(event_id);
     }
 
     fn new_window(&mut self, cmd: Command) -> Result<(), Box<dyn std::error::Error>> {
@@ -768,9 +798,9 @@ impl<T: Data> AppState<T> {
         }
     }
 
-    fn do_paste(&mut self, window_id: WindowId) {
+    fn do_paste(&mut self, window_id: WindowId, event_id: EventId) {
         let event = Event::Paste(self.inner.borrow().app.clipboard());
-        self.inner.borrow_mut().do_window_event(window_id, event);
+        self.inner.borrow_mut().do_window_event(window_id, event, event_id);
     }
 
     fn quit(&self) {
@@ -923,10 +953,11 @@ impl<T: Data> WinHandler for DruidHandler<T> {
     }
 
     fn request_close(&mut self) {
+        let event_id = EventId::new();
         self.app_state
-            .handle_cmd(sys_cmd::CLOSE_WINDOW.to(self.window_id));
-        self.app_state.process_commands();
-        self.app_state.inner.borrow_mut().do_update();
+            .handle_cmd(sys_cmd::CLOSE_WINDOW.to(self.window_id), event_id);
+        self.app_state.process_commands(event_id);
+        self.app_state.inner.borrow_mut().do_update(event_id);
     }
 
     fn destroy(&mut self) {

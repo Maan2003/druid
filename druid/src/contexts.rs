@@ -52,9 +52,24 @@ pub(crate) struct ContextState<'a> {
     pub(crate) window_id: WindowId,
     pub(crate) window: &'a WindowHandle,
     pub(crate) text: PietText,
+    pub(crate) event_id: EventId,
     /// The id of the widget that currently has focus.
     pub(crate) focus_widget: Option<WidgetId>,
     pub(crate) root_app_data_type: TypeId,
+}
+
+#[derive(Debug, Clone, Copy, Data, PartialEq, Eq, PartialOrd)]
+pub struct EventId(u64);
+
+impl EventId {
+    pub fn new() -> Self {
+        static COUNTER: druid_shell::Counter = druid_shell::Counter::new();
+        Self(COUNTER.next())
+    }
+
+    pub fn as_raw(&self) -> u64 {
+        self.0
+    }
 }
 
 /// A mutable context provided to event handling methods of widgets.
@@ -800,6 +815,7 @@ impl<'a> ContextState<'a> {
         window: &'a WindowHandle,
         window_id: WindowId,
         focus_widget: Option<WidgetId>,
+        event_id: EventId,
     ) -> Self {
         ContextState {
             command_queue,
@@ -809,6 +825,7 @@ impl<'a> ContextState<'a> {
             focus_widget,
             text: window.text(),
             root_app_data_type: TypeId::of::<T>(),
+            event_id,
         }
     }
 
