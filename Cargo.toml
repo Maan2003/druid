@@ -16,5 +16,5 @@ default-members = [
     "druid-derive",
 ]
 
-[patch.'https://github.com/linebender/druid']
+[patch.'https://github.com/Maan2003/druid']
 druid = { path = "druid" }
