@@ -1,6 +1,6 @@
 // Taken from runebender (https://github.com/linebender/runebender)
-use druid::{WidgetExt, WidgetPod, widget::SizedBox};
 use druid::widget::prelude::*;
+use druid::{widget::SizedBox, WidgetExt, WidgetPod};
 /// A widget that switches between two possible child views, for `Data` that
 /// is `Option<T>`.
 pub struct Maybe<T> {

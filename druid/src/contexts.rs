@@ -433,9 +433,22 @@ impl_context_method!(
         /// [`Command`]: struct.Command.html
         /// [`update`]: trait.Widget.html#tymethod.update
         pub fn submit_command(&mut self, cmd: impl Into<Command>) {
-            self.state.submit_command(cmd.into())
+            let cmd = cmd.into();
+            let dbg_win = crate::dbg::window_id();
+            if self.window_id() != dbg_win {
+                self.state.submit_command(
+                    crate::dbg::COMMAND
+                        .with((self.state.event_id, self.widget_id(), cmd.clone()))
+                        .to(dbg_win),
+                );
+            }
+
+            self.state.submit_command(cmd)
         }
 
+        pub(crate) fn submit_dbg(&mut self, cmd: impl Into<Command>) {
+            self.state.submit_command(cmd.into())
+        }
         /// Returns an [`ExtEventSink`] that can be moved between threads,
         /// and can be used to submit commands back to the application.
         ///

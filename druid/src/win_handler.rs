@@ -659,7 +659,12 @@ impl<T: Data> AppState<T> {
             T::Window(id) if cmd.is(sys_cmd::SHOW_SAVE_PANEL) => self.show_save_panel(cmd, id),
             T::Window(id) if cmd.is(sys_cmd::CONFIGURE_WINDOW) => self.configure_window(cmd, id),
             T::Window(id) if cmd.is(sys_cmd::CLOSE_WINDOW) => {
-                if !self.inner.borrow_mut().dispatch_cmd(cmd, event_id).is_handled() {
+                if !self
+                    .inner
+                    .borrow_mut()
+                    .dispatch_cmd(cmd, event_id)
+                    .is_handled()
+                {
                     self.request_close_window(id);
                 }
             }
@@ -800,7 +805,9 @@ impl<T: Data> AppState<T> {
 
     fn do_paste(&mut self, window_id: WindowId, event_id: EventId) {
         let event = Event::Paste(self.inner.borrow().app.clipboard());
-        self.inner.borrow_mut().do_window_event(window_id, event, event_id);
+        self.inner
+            .borrow_mut()
+            .do_window_event(window_id, event, event_id);
     }
 
     fn quit(&self) {

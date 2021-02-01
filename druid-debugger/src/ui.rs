@@ -1,38 +1,55 @@
-use druid::lens::Index;
-use druid::widget::{Controller, ViewSwitcher};
-use druid::{dbg, Env, LensExt, LifeCycle, LifeCycleCtx};
-use druid::{
-    im::Vector,
-    widget::{CrossAxisAlignment, Flex, Label, List, Scroll},
-    Widget, WidgetExt, WidgetPod,
-};
-
-use crate::data::{EventData, Item, ItemInner, Screen};
+use crate::data::{EventData, Filter, Item, ItemInner, Screen};
 use crate::SELECT_EVENT;
 use crate::{data::DebuggerData, delegate::Delegate, widget::AppWrapper};
+use druid::lens::Index;
+use druid::widget::{Button, Checkbox, Controller, ViewSwitcher};
+use druid::{
+    im::Vector,
+    widget::{CrossAxisAlignment, Flex, Label, Scroll},
+    Widget, WidgetExt, WidgetPod,
+};
+use druid::{Env, LensExt, LifeCycle, LifeCycleCtx};
+use druid_simple_table::Table;
 
 pub fn ui_builder<T: druid::Data>() -> impl Widget<T> {
     AppWrapper {
         inner: WidgetPod::new(ui().boxed()),
         data: DebuggerData {
-            items: Vector::new(),
             screen: Screen::EventSelection,
+            all_items: Vector::new(),
+            filter: Default::default(),
         },
-        delegate: Delegate,
+        delegate: Delegate::default(),
     }
 }
 
 fn ui() -> impl Widget<DebuggerData> {
-    ViewSwitcher::new(
-        |data: &DebuggerData, _| data.screen,
-        |_, data: &DebuggerData, _| match data.screen {
-            Screen::EventSelection => event_selection().boxed(),
-            Screen::EventDetails(a) => event_details()
-                .lens(DebuggerData::items.then(Index::new(a)))
-                .boxed(),
-        },
-    )
-    .padding(10.)
+    Flex::column()
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_child(
+            Flex::row()
+                .with_child(Checkbox::new("Timer").lens(Filter::timer))
+                .with_child(Checkbox::new("Mouse").lens(Filter::mouse))
+                .with_child(Checkbox::new("Keyboard").lens(Filter::key))
+                .with_child(Checkbox::new("Window").lens(Filter::window))
+                .with_child(Checkbox::new("Animation").lens(Filter::anim))
+                .with_child(Checkbox::new("Internal").lens(Filter::internal))
+                .lens(DebuggerData::filter),
+        )
+        .with_default_spacer()
+        .with_flex_child(
+            ViewSwitcher::new(
+                |data: &DebuggerData, _| data.screen,
+                |_, data: &DebuggerData, _| match data.screen {
+                    Screen::EventSelection => event_selection().boxed(),
+                    Screen::EventDetails(a) => event_details()
+                        .lens(DebuggerData::all_items.then(Index::new(a)))
+                        .boxed(),
+                },
+            ),
+            1.0,
+        )
+        .padding(10.)
 }
 
 fn event_selection() -> impl Widget<DebuggerData> {
@@ -40,44 +57,63 @@ fn event_selection() -> impl Widget<DebuggerData> {
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .with_child(Label::new("Select an Event to inspect"))
         .with_default_spacer()
-        .with_flex_child(
-            Scroll::new(List::new(|| {
-                Label::dynamic(|event: &EventData, _| {
-                    format!("Events #{}", event.event_id.as_raw())
-                })
-                .on_click(|ctx, event: &mut EventData, _| {
-                    ctx.submit_command(SELECT_EVENT.with(event.idx));
-                })
-            }))
-            .vertical()
-            .expand_width()
-            .lens(DebuggerData::items),
-            1.0,
-        )
+        .with_flex_child(Scroll::new(event_slc()), 1.0)
+}
+
+fn event_slc() -> impl Widget<DebuggerData> {
+    Table::new()
+        .col(Label::new("Event Id").padding(5.), || {
+            Label::dynamic(|ev: &EventData, _env| format!("{}", ev.event_id.as_raw())).on_click(
+                |ctx, ev, _| {
+                    ctx.submit_command(SELECT_EVENT.with(ev.idx));
+                },
+            )
+        })
+        .col(Label::new("Kind").padding(5.), || {
+            Label::dynamic(|ev: &Item, _env| {
+                let mut s = String::new();
+                match &ev.inner {
+                    ItemInner::Event(ev) => ev.render(&mut s),
+                    ItemInner::Command(_) => s = "Command Sent".into(),
+                }
+                s
+            })
+            .lens(EventData::all_items.then(Index::new(0)))
+        })
+        .border(druid::theme::BORDER_LIGHT, 1.0)
+        .lens(DebuggerData::all_items)
 }
 
 fn event_details() -> impl Widget<EventData> {
-    List::new(show_event).lens(EventData::items)
-}
-
-fn show_event() -> impl Widget<Item> {
-    Label::dynamic(|item: &Item, _| match &item.inner {
-        ItemInner::Event(e) => {
-            let mut s = String::new();
-            e.render(&mut s);
-            format!(
-                "{:?} recieved Event {}",
-                item.widget_id,
-                s.split("{").next().unwrap()
-            )
-        }
-    })
-    .controller(OnHover(
-        |ctx: &mut LifeCycleCtx, data: &Item, hovered, _env: &Env| {
-            dbg!();
-            ctx.submit_command(dbg::HIGHLIGHT.with(hovered).to(data.widget_id));
-        },
-    ))
+    Flex::column()
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_child(Button::new("Back").on_click(|ctx, _, _| {
+            ctx.submit_command(super::BACK_HOME);
+        }))
+        .with_default_spacer()
+        .with_flex_child(
+            Scroll::new(
+                Table::new()
+                    .col(Label::new("Widget Id").padding(5.), || {
+                        Label::dynamic(|ev: &Item, _| format!("{:?}", ev.widget_id)).controller(
+                            OnHover(|ctx: &mut LifeCycleCtx, it: &Item, hovered, _env: &Env| {
+                                ctx.submit_command(
+                                    druid::dbg::HIGHLIGHT.with(hovered).to(it.widget_id),
+                                );
+                            }),
+                        )
+                    })
+                    .col(Label::new("Details").padding(5.), || {
+                        Label::dynamic(|data: &Item, _| match &data.inner {
+                            ItemInner::Event(ev) => format!("{:#?}", ev.inner),
+                            ItemInner::Command(cmd) => format!("{:#?}", cmd.inner),
+                        })
+                    })
+                    .border(druid::theme::BORDER_LIGHT, 1.0)
+                    .lens(EventData::all_items),
+            ),
+            1.0,
+        )
 }
 
 struct OnHover<F>(F);
@@ -115,52 +151,3 @@ where
         child.update(ctx, old_data, data, env)
     }
 }
-// fn selector_page() -> impl Widget<()> {
-//     Button::new("Inspect")
-//         .on_click(|ctx, _, _| ctx.submit_command(INSPECT.to(Target::Global)))
-//         .center()
-// }
-
-// fn widget_page() -> impl Widget<DebugItem> {
-//     let heading = Label::new("Events").with_text_size(18.);
-
-//     Flex::column()
-//         .must_fill_main_axis(true)
-//         .cross_axis_alignment(CrossAxisAlignment::Start)
-//         .with_child(
-//             Label::dynamic(|data: &DebugItem, _| data.name.clone())
-//                 .with_text_size(24.0)
-//                 .center(),
-//         )
-//         .with_spacer(20.)
-//         .with_child(heading)
-//         .with_default_spacer()
-//         .with_flex_child(
-//             Scroll::new(List::new(event).with_spacing(5.))
-//                 .vertical()
-//                 .expand()
-//                 .lens(DebugItem::events),
-//             1.0,
-//         )
-//         .padding(15.)
-// }
-
-// fn event() -> impl Widget<Event> {
-//     EventWidget::new().expand_width()
-// }
-
-// fn get_color(ev: &Event) -> Color {
-//     match ev.inner {
-//         druid::Event::WindowConnected
-//         | druid::Event::WindowCloseRequested
-//         | druid::Event::WindowDisconnected
-//         | druid::Event::WindowSize(_) => Color::PURPLE,
-
-//         druid::Event::MouseDown(_)
-//         | druid::Event::MouseUp(_)
-//         | druid::Event::MouseMove(_)
-//         | druid::Event::Wheel(_) => Color::YELLOW,
-//         druid::Event::KeyDown(_) | druid::Event::KeyUp(_) | druid::Event::Paste(_) => Color::AQUA,
-//         _ => Color::FUCHSIA,
-//     }
-// }

@@ -304,7 +304,14 @@ impl<T: Data> Window<T> {
             widget_state: &mut widget_state,
         };
         self.root.lifecycle(&mut ctx, event, data, env);
-        self.post_event_processing(&mut widget_state, queue, data, env, process_commands, event_id);
+        self.post_event_processing(
+            &mut widget_state,
+            queue,
+            data,
+            env,
+            process_commands,
+            event_id,
+        );
     }
 
     pub(crate) fn update(

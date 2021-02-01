@@ -7,6 +7,7 @@ mod expandable_text;
 mod ui;
 mod widget;
 const SELECT_EVENT: Selector<usize> = Selector::new("druid-debugger.internal.select-event");
+const BACK_HOME: Selector<()> = Selector::new("druid-debugger.internal.back-home");
 
 pub fn launch<T: druid::Data>(ctx: &mut DelegateCtx) {
     let window = WindowDesc::new(ui::ui_builder::<T>);

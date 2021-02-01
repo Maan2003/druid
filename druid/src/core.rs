@@ -813,7 +813,6 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                     if cmd.is(dbg::HIGHLIGHT)
                         && cmd.target() == Target::Widget(inner_ctx.widget_id()) =>
                 {
-                    dbg!("here");
                     inner_ctx.widget_state.highlight = *cmd.get_unchecked(dbg::HIGHLIGHT);
                     inner_ctx.request_paint();
                 }
@@ -825,7 +824,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                             inner_ctx.widget_id(),
                             inner_event.clone(),
                         );
-                        inner_ctx.submit_command(dbg::EVENT.with(cmd_data).to(dbg_window));
+                        inner_ctx.submit_dbg(dbg::EVENT.with(cmd_data).to(dbg_window));
                     }
 
                     self.inner.event(&mut inner_ctx, &inner_event, data, env);
@@ -1280,7 +1279,7 @@ mod tests {
             &window,
             WindowId::next(),
             None,
-            EventId::new()
+            EventId::new(),
         );
 
         let mut ctx = LifeCycleCtx {

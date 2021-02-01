@@ -1,4 +1,4 @@
-use super::super::{data::DebuggerData, delegate};
+use crate::{data::DebuggerData, delegate};
 use delegate::Delegate;
 use druid::{widget::prelude::*, WidgetPod};
 
@@ -24,6 +24,7 @@ impl<T: Data> Widget<T> for AppWrapper {
     }
 
     fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, _data: &T, env: &Env) {
+        self.delegate.update(ctx, &self.data);
         self.inner.update(ctx, &self.data, env)
     }
 

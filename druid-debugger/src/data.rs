@@ -1,39 +1,80 @@
 use std::fmt::Write;
 
-use druid::{im, Data, KeyEvent, Lens, MouseEvent, WidgetId};
+use druid::{
+    im::{self, vector},
+    Data, KeyEvent, Lens, MouseEvent, WidgetId,
+};
 use im::Vector;
 
 use druid::EventId;
 
-#[derive(Data, Clone, Lens)]
+#[derive(Data, Debug, Clone, Lens)]
 pub struct DebuggerData {
-    pub items: Vector<EventData>,
+    pub all_items: Vector<EventData>,
     pub screen: Screen,
+    pub filter: Filter,
 }
 
-#[derive(Data, Clone, Copy)]
+#[derive(Debug, Data, Clone, Lens)]
+pub struct Filter {
+    pub mouse_move: bool,
+    pub timer: bool,
+    pub internal: bool,
+    pub key: bool,
+    pub mouse: bool,
+    pub anim: bool,
+    pub window: bool,
+}
+
+impl Default for Filter {
+    fn default() -> Self {
+        Filter {
+            mouse_move: false,
+            timer: true,
+            internal: false,
+            key: true,
+            mouse: true,
+            anim: true,
+            window: true,
+        }
+    }
+}
+
+#[derive(Data, Clone, Debug, Copy)]
 pub enum Screen {
     EventSelection,
     EventDetails(usize),
 }
 
-#[derive(Data, Clone, Lens)]
+#[derive(Data, Clone, Debug, Lens)]
 pub struct EventData {
     pub idx: usize,
     pub event_id: EventId,
-    pub items: Vector<Item>,
+    pub all_items: Vector<Item>,
 }
 
-#[derive(Data, Clone, Lens)]
+#[derive(Data, Clone, Debug, Lens)]
 pub struct Item {
     #[data(same_fn = "PartialEq::eq")]
     pub widget_id: WidgetId,
     pub inner: ItemInner,
 }
 
-#[derive(Data, Clone)]
+#[derive(Data, Clone, Debug)]
 pub enum ItemInner {
     Event(Event),
+    Command(Command),
+}
+
+#[derive(Clone, Debug)]
+pub struct Command {
+    pub inner: druid::Command,
+}
+
+impl Data for Command {
+    fn same(&self, other: &Self) -> bool {
+        true
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -90,22 +131,26 @@ impl Event {
             // druid::Event::WindowSize(_) => {}
             druid::Event::MouseDown(m) => {
                 write!(w, "MouseDown ").unwrap();
-                show_mouse_event(m, w);
+                // show_mouse_event(m, w);
             }
             druid::Event::MouseUp(m) => {
                 write!(w, "MouseUp ").unwrap();
-                show_mouse_event(m, w);
+                // show_mouse_event(m, w);
             }
             druid::Event::MouseMove(m) => {
                 write!(w, "MouseMove ").unwrap();
-                show_mouse_event(m, w);
+                // show_mouse_event(m, w);
             }
             druid::Event::Wheel(m) => {
                 write!(w, "Wheel ").unwrap();
-                show_mouse_event(m, w);
+                // show_mouse_event(m, w);
             }
-            // druid::Event::KeyDown(_) => {}
-            // druid::Event::KeyUp(_) => {}
+            druid::Event::KeyDown(ev) => {
+                write!(w, "KeyDown {:?}", ev.key).unwrap();
+            }
+            druid::Event::KeyUp(ev) => {
+                write!(w, "KeyUp {:?}", ev.key).unwrap();
+            }
             druid::Event::Paste(_) => {
                 write!(w, "Paste").unwrap();
             }
@@ -137,7 +182,7 @@ impl Event {
                 write!(w, "Window Disconnected").unwrap();
             }
             druid::Event::WindowSize(s) => {
-                write!(w, "Window Size {:?}", s).unwrap();
+                write!(w, "Window Size").unwrap();
             }
             // druid::Event::KeyDown(_) => {}
             // druid::Event::KeyUp(_) => {}
