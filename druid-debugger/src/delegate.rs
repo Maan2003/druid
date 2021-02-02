@@ -31,6 +31,10 @@ impl Delegate {
     }
 
     fn filter_item(&mut self, filter: &data::Filter, item: &Item) -> bool {
+        let id = item.widget_id.to_raw().to_string();
+        if filter.widget_ids.split(' ').any(|w| w == id) {
+            return false;
+        }
         match &item.inner {
             ItemInner::Event(e) => match e.inner {
                 Event::WindowConnected => filter.window,
@@ -53,35 +57,6 @@ impl Delegate {
             },
             ItemInner::Command(_) => true,
         }
-    }
-
-    fn re_filter(&mut self, data: &mut DebuggerData) {
-        // match &data.screen {
-        //     Screen::EventSelection => {
-        //         let items = data.all_items.clone();
-        //         data.all_items.clear();
-
-        //         let filter = &data.filter;
-        //         let filtered = items.iter().filter(|e| {
-        //             e.all_items
-        //                 .iter()
-        //                 .any(|item| self.filter_item(filter, item))
-        //         });
-
-        //         data.all_items.extend(filtered.cloned());
-        //     }
-        //     Screen::EventDetails(idx) => {
-        //         let item = &mut data.all_items[*idx];
-        //         let filter = &data.filter;
-
-        //         let filtered = item
-        //             .all_items
-        //             .iter()
-        //             .filter(|e| self.filter_item(filter, e));
-
-        //         item.items.extend(filtered.cloned());
-        //     }
-        // }
     }
 
     fn add_item(
@@ -117,7 +92,7 @@ impl Delegate {
         event_data.all_items.push_back(item);
     }
 
-    pub fn command(&mut self, _ctx: &mut EventCtx, cmd: &Command, data: &mut DebuggerData) {
+    pub fn command(&mut self, ctx: &mut EventCtx, cmd: &Command, data: &mut DebuggerData) {
         if let Some((event_id, widget_id, ev)) = cmd.get(dbg::EVENT).cloned() {
             self.add_item(
                 data,
@@ -142,9 +117,11 @@ impl Delegate {
         if cmd.is(super::BACK_HOME) {
             data.screen = Screen::EventSelection;
         }
-
-        if cmd.is(REFILTER) {
-            self.re_filter(data);
+        // TODO: this panic if on Screen::EventDetails
+	if cmd.is(super::CLEAR) {
+            data.all_items = Vector::new();
+            data.screen = Screen::EventSelection;
+            ctx.children_changed();
         }
     }
 }

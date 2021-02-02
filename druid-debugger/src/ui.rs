@@ -1,13 +1,13 @@
 use crate::data::{EventData, Filter, Item, ItemInner, Screen};
 use crate::SELECT_EVENT;
 use crate::{data::DebuggerData, delegate::Delegate, widget::AppWrapper};
-use druid::lens::Index;
 use druid::widget::{Button, Checkbox, Controller, ViewSwitcher};
 use druid::{
     im::Vector,
     widget::{CrossAxisAlignment, Flex, Label, Scroll},
     Widget, WidgetExt, WidgetPod,
 };
+use druid::{lens::Index, widget::TextBox};
 use druid::{Env, LensExt, LifeCycle, LifeCycleCtx};
 use druid_simple_table::Table;
 
@@ -27,13 +27,25 @@ fn ui() -> impl Widget<DebuggerData> {
     Flex::column()
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .with_child(
-            Flex::row()
-                .with_child(Checkbox::new("Timer").lens(Filter::timer))
-                .with_child(Checkbox::new("Mouse").lens(Filter::mouse))
-                .with_child(Checkbox::new("Keyboard").lens(Filter::key))
-                .with_child(Checkbox::new("Window").lens(Filter::window))
-                .with_child(Checkbox::new("Animation").lens(Filter::anim))
-                .with_child(Checkbox::new("Internal").lens(Filter::internal))
+            Flex::column()
+                .with_child(
+                    TextBox::new()
+                        .with_placeholder("Widget Ids ignored")
+                        .fix_width(300.)
+                        .lens(Filter::widget_ids),
+                )
+                .with_default_spacer()
+                .with_child(
+                    Flex::row()
+                        .with_child(Checkbox::new("Timer").lens(Filter::timer))
+                        .with_child(Checkbox::new("Mouse").lens(Filter::mouse))
+                        .with_child(Checkbox::new("Keyboard").lens(Filter::key))
+                        .with_child(Checkbox::new("Window").lens(Filter::window))
+                        .with_child(Checkbox::new("Animation").lens(Filter::anim))
+                        .with_child(Checkbox::new("Internal").lens(Filter::internal))
+                        .with_child(Checkbox::new("Requests").lens(Filter::requests)).center(),
+                )
+                .with_default_spacer()
                 .lens(DebuggerData::filter),
         )
         .with_default_spacer()

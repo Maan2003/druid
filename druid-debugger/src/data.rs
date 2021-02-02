@@ -17,6 +17,7 @@ pub struct DebuggerData {
 
 #[derive(Debug, Data, Clone, Lens)]
 pub struct Filter {
+    pub widget_ids: String,
     pub mouse_move: bool,
     pub timer: bool,
     pub internal: bool,
@@ -24,11 +25,13 @@ pub struct Filter {
     pub mouse: bool,
     pub anim: bool,
     pub window: bool,
+    pub requests: bool,
 }
 
 impl Default for Filter {
     fn default() -> Self {
         Filter {
+            widget_ids: String::new(),
             mouse_move: false,
             timer: true,
             internal: false,
@@ -36,6 +39,7 @@ impl Default for Filter {
             mouse: true,
             anim: true,
             window: true,
+            requests: true,
         }
     }
 }
