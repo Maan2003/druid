@@ -143,6 +143,14 @@ impl RichTextBuilder {
         self.add_attributes_for_range(range)
     }
 
+    pub fn raw_parts(&mut self) -> (&mut String, &mut AttributeSpans) {
+        (&mut self.buffer, &mut self.attrs)
+    }
+
+    pub fn len(&self) -> usize {
+        self.buffer.len()
+    }
+
     /// Glue for usage of the write! macro.
     ///
     /// This method should generally not be invoked manually, but rather through the write! macro itself.

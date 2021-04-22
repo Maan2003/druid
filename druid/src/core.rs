@@ -48,6 +48,7 @@ pub(crate) type CommandQueue = VecDeque<Command>;
 /// widget can process a diff between the old value and the new.
 ///
 /// [`update`]: trait.Widget.html#tymethod.update
+#[derive(Clone)]
 pub struct WidgetPod<T, W> {
     state: WidgetState,
     old_data: Option<T>,
@@ -72,7 +73,7 @@ pub struct WidgetPod<T, W> {
 ///
 /// [`paint`]: trait.Widget.html#tymethod.paint
 /// [`WidgetPod`]: struct.WidgetPod.html
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct WidgetState {
     pub(crate) id: WidgetId,
     /// The size of the child; this is the value returned by the child's layout

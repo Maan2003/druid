@@ -20,6 +20,7 @@ use crate::{Data, Insets, KeyOrValue, Point, WidgetPod};
 use tracing::{instrument, trace};
 
 /// A widget that just adds padding around its child.
+#[derive(Clone)]
 pub struct Padding<T, W> {
     insets: KeyOrValue<Insets>,
     child: WidgetPod<T, W>,

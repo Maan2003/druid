@@ -293,8 +293,8 @@ macro_rules! lens {
     ($ty:ty, [$index:expr]) => {
         $crate::lens::Field::new::<$ty, _>(move |x| &x[$index], move |x| &mut x[$index])
     };
-    ($ty:ty, $field:tt) => {
-        $crate::lens::Field::new::<$ty, _>(move |x| &x.$field, move |x| &mut x.$field)
+    ($ty:ty, $($field:tt)*) => {
+        $crate::lens::Field::new::<$ty, _>(move |x| &x.$($field)*, move |x| &mut x.$($field)*)
     };
 }
 

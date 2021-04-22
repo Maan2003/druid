@@ -93,6 +93,7 @@ pub struct Label<T> {
 /// localized text, use [`Label`].
 ///
 /// [`Label`]: struct.Label.html
+#[derive(Clone, Debug)]
 pub struct RawLabel<T> {
     layout: TextLayout<T>,
     line_break_mode: LineBreaking,

@@ -87,11 +87,22 @@ struct EnvImpl {
 ///
 /// [`ValueType`]: trait.ValueType.html
 /// [`Env`]: struct.Env.html
-#[derive(Clone, Debug, PartialEq, Data)]
+#[derive(Debug, PartialEq, Data)]
 pub struct Key<T> {
     key: &'static str,
     value_type: PhantomData<T>,
 }
+
+impl<T> Clone for Key<T> {
+    fn clone(&self) -> Self {
+        Self {
+            key: self.key,
+            value_type: self.value_type,
+        }
+    }
+}
+
+impl<T> Copy for Key<T> {}
 
 // we could do some serious deriving here: the set of types that can be stored
 // could be defined per-app
