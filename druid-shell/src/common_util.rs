@@ -32,7 +32,7 @@ const MULTI_CLICK_MAX_DISTANCE: f64 = 5.0;
 /// Strip the access keys from the menu string.
 ///
 /// Changes "E&xit" to "Exit". Actual ampersands are escaped as "&&".
-#[cfg(any(target_os = "macos", all(target_os = "linux", feature = "gtk")))]
+#[cfg(any(target_os = "macos", all(target_os = "linux", not(druid_shell_backend = "x11"))))]
 pub fn strip_access_key(raw_menu_text: &str) -> String {
     let mut saw_ampersand = false;
     let mut result = String::new();

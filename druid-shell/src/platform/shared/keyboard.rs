@@ -17,7 +17,7 @@
 #[allow(unused)]
 use keyboard_types::{Code, Location};
 
-#[cfg(any(all(feature = "x11", target_os = "linux"), target_os = "macos"))]
+#[cfg(any(all(druid_shell_backend = "x11", target_os = "linux"), target_os = "macos"))]
 /// Map key code to location.
 ///
 /// The logic for this is adapted from InitKeyEvent in TextInputHandler (in the Mozilla

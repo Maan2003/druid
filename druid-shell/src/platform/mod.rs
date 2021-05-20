@@ -28,18 +28,18 @@ pub use mac::*;
 #[cfg(target_os = "macos")]
 pub(crate) mod shared;
 
-#[cfg(all(feature = "x11", target_os = "linux"))]
+#[cfg(all(druid_shell_backend = "x11", target_os = "linux"))]
 mod x11;
-#[cfg(all(feature = "x11", target_os = "linux"))]
+#[cfg(all(druid_shell_backend = "x11", target_os = "linux"))]
 pub use x11::*;
-#[cfg(all(feature = "x11", target_os = "linux"))]
+#[cfg(all(druid_shell_backend = "x11", target_os = "linux"))]
 pub(crate) mod shared;
 
-#[cfg(all(not(feature = "x11"), target_os = "linux"))]
+#[cfg(all(not(druid_shell_backend = "x11"), target_os = "linux"))]
 mod gtk;
-#[cfg(all(not(feature = "x11"), target_os = "linux"))]
+#[cfg(all(not(druid_shell_backend = "x11"), target_os = "linux"))]
 pub use self::gtk::*;
-#[cfg(all(not(feature = "x11"), target_os = "linux"))]
+#[cfg(all(not(druid_shell_backend = "x11"), target_os = "linux"))]
 pub(crate) mod shared;
 
 #[cfg(target_arch = "wasm32")]
