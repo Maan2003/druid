@@ -17,6 +17,7 @@
 pub mod application;
 pub mod clipboard;
 pub mod dialog;
+pub mod dnd;
 pub mod error;
 pub mod keycodes;
 pub mod menu;

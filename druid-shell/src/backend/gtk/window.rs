@@ -26,7 +26,9 @@ use std::time::Instant;
 
 use anyhow::anyhow;
 use cairo::Surface;
-use gdk::{EventKey, EventMask, ModifierType, ScrollDirection, WindowExt, WindowTypeHint};
+use gdk::{
+    DragAction, EventKey, EventMask, ModifierType, ScrollDirection, WindowExt, WindowTypeHint,
+};
 use gio::ApplicationExt;
 use gtk::prelude::*;
 use gtk::{AccelGroup, ApplicationWindow, DrawingArea, SettingsExt};
@@ -35,6 +37,9 @@ use tracing::{error, warn};
 #[cfg(feature = "raw-win-handle")]
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
+use crate::DropEvent;
+use crate::backend::clipboard::Clipboard;
+use crate::backend::dnd::DropContext;
 use crate::kurbo::{Insets, Point, Rect, Size, Vec2};
 use crate::piet::{Piet, PietText, RenderContext};
 
@@ -180,6 +185,7 @@ pub(crate) struct WindowState {
 
     request_animation: Cell<bool>,
     in_draw: Cell<bool>,
+    drop_context: RefCell<Option<DropContext>>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -301,6 +307,7 @@ impl WindowBuilder {
             deferred_queue: RefCell::new(Vec::new()),
             request_animation: Cell::new(false),
             in_draw: Cell::new(false),
+            drop_context: RefCell::new(None),
         });
 
         self.app
@@ -346,6 +353,11 @@ impl WindowBuilder {
         );
 
         win_state.drawing_area.set_can_focus(true);
+        win_state.drawing_area.drag_dest_set(
+            gtk::DestDefaults::DROP,
+            &[],
+            gdk::DragAction::empty(),
+        );
         win_state.drawing_area.grab_focus();
 
         win_state
@@ -692,9 +704,59 @@ impl WindowBuilder {
             .drawing_area
             .connect_focus_out_event(clone!(handle => move |_widget, _event| {
                 if let Some(state) = handle.state.upgrade() {
+                    // the drop event also leaves
+                    *state.drop_context.borrow_mut() = None;
                     state.with_handler(|h| h.lost_focus());
                 }
                 Inhibit(true)
+            }));
+
+        win_state.drawing_area.connect_drag_motion(
+            clone!(handle => move |_widget, drag_ctx, x, y, time| {
+                if let Some(state) = handle.state.upgrade() {
+                    let position = Point::new(x as f64, y as f64).to_dp(state.scale.get());
+                    let clipboard = Clipboard {
+                        selection: drag_ctx.drag_get_selection(),
+                    };
+                    let ctx = DropContext {
+                        gtk_ctx: drag_ctx.clone(),
+                        clipboard,
+                        time,
+                    };
+                    let old_ctx = state.drop_context.replace(Some(ctx));
+                    if old_ctx.is_none() {
+                        state.with_handler(|h| h.drop_enter());
+                    }
+                    state.with_handler(|h| h.drop_motion(&DropEvent {
+                        // TODO
+                        modifiers: Modifiers::empty(),
+                        position
+                    }));
+                }
+                Inhibit(false)
+            }),
+        );
+
+        win_state.drawing_area.connect_drag_drop(
+            clone!(handle => move |_widget, _drag_ctx, _x, _y, time| {
+                if let Some(state) = handle.state.upgrade() {
+                    let mut drop_ctx = state.drop_context.borrow_mut();
+                    drop_ctx.as_mut().unwrap().time = time;
+                    drop(drop_ctx);
+                    state.with_handler(|h| h.drop_droped());
+                    *state.drop_context.borrow_mut() = None;
+                }
+                Inhibit(true)
+            }),
+        );
+
+        win_state
+            .drawing_area
+            .connect_drag_leave(clone!(handle => move |_widget,_ctx, _time| {
+                if let Some(state) = handle.state.upgrade() {
+                    *state.drop_context.borrow_mut() = None;
+                    state.with_handler(|h| h.drop_leave());
+                }
             }));
 
         win_state
@@ -1215,6 +1277,11 @@ impl WindowHandle {
         if let Some(state) = self.state.upgrade() {
             state.window.set_title(&(title.into()));
         }
+    }
+    pub fn drop_context(&self) -> Option<DropContext> {
+        let state = self.state.upgrade()?;
+        let drop_ctx = state.drop_context.borrow();
+        drop_ctx.clone()
     }
 }
 
