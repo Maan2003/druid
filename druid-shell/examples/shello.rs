@@ -17,10 +17,7 @@ use std::any::Any;
 use druid_shell::kurbo::{Line, Size};
 use druid_shell::piet::{Color, RenderContext};
 
-use druid_shell::{
-    Application, Cursor, FileDialogOptions, FileDialogToken, FileInfo, FileSpec, HotKey, KeyEvent,
-    Menu, MouseEvent, Region, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle,
-};
+use druid_shell::{Application, ClipboardFormat, Cursor, DropContext, DropEvent, FileDialogOptions, FileDialogToken, FileInfo, FileSpec, HotKey, KeyEvent, Menu, MouseEvent, Region, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle};
 
 const BG_COLOR: Color = Color::rgb8(0x27, 0x28, 0x22);
 const FG_COLOR: Color = Color::rgb8(0xf0, 0xf0, 0xea);
@@ -81,7 +78,8 @@ impl WinHandler for HelloState {
 
     fn mouse_move(&mut self, event: &MouseEvent) {
         self.handle.set_cursor(&Cursor::Arrow);
-        println!("mouse_move {:?}", event);
+        // don't spam
+        // println!("mouse_move {:?}", event);
     }
 
     fn mouse_down(&mut self, event: &MouseEvent) {
@@ -106,6 +104,25 @@ impl WinHandler for HelloState {
 
     fn lost_focus(&mut self) {
         println!("Lost focus");
+    }
+
+    fn drop_enter(&mut self) {
+        let ctx = self.handle.drop_context().unwrap();
+        dbg!(ctx.action());
+        dbg!(ctx.files());
+        ctx.set_action(druid_shell::DropAction::Copy);
+    }
+
+    fn drop_leave(&mut self) {
+        println!("drop left");
+    }
+
+    fn drop_droped(&mut self) {
+        println!("drop droped");
+    }
+
+    fn drop_motion(&mut self, event: &DropEvent) {
+	println!("drop moved to {:?}", event.position);
     }
 
     fn request_close(&mut self) {
