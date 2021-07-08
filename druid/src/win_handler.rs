@@ -38,7 +38,7 @@ use crate::{
 
 use crate::app::{PendingWindow, WindowConfig};
 use crate::command::sys as sys_cmd;
-use druid_shell::WindowBuilder;
+use druid_shell::{DropEvent, WindowBuilder};
 
 pub(crate) const RUN_COMMANDS_TOKEN: IdleToken = IdleToken::new(1);
 
@@ -971,6 +971,21 @@ impl<T: Data> WinHandler for DruidHandler<T> {
 
     fn got_focus(&mut self) {
         self.app_state.window_got_focus(self.window_id);
+    }
+
+    fn drop_leave(&mut self) {
+        let event = Event::DropLeave;
+        self.app_state.do_window_event(event, self.window_id);
+    }
+
+    fn drop_enter(&mut self) {
+        let event = Event::DropEnter;
+        self.app_state.do_window_event(event, self.window_id);
+    }
+
+    fn drop_motion(&mut self, event: &DropEvent) {
+        let event = Event::DropMove(event.clone());
+        self.app_state.do_window_event(event, self.window_id);
     }
 
     fn timer(&mut self, token: TimerToken) {

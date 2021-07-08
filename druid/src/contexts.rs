@@ -21,6 +21,7 @@ use std::{
     rc::Rc,
     time::Duration,
 };
+use druid_shell::DropContext;
 use tracing::{error, trace, warn};
 
 use crate::core::{CommandQueue, CursorChange, FocusChange, WidgetState};
@@ -682,6 +683,10 @@ impl EventCtx<'_, '_> {
     pub fn request_update(&mut self) {
         trace!("request_update");
         self.widget_state.request_update = true;
+    }
+
+    pub fn drop_context(&self) -> Option<DropContext> {
+	self.state.window.drop_context()
     }
 }
 

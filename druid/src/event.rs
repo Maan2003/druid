@@ -16,7 +16,7 @@
 
 use crate::kurbo::{Rect, Shape, Size, Vec2};
 
-use druid_shell::{Clipboard, KeyEvent, TimerToken};
+use druid_shell::{Clipboard, DropEvent, KeyEvent, TimerToken};
 
 use crate::mouse::MouseEvent;
 use crate::{Command, Notification, WidgetId};
@@ -137,6 +137,9 @@ pub enum Event {
     /// intensive in response to an `AnimFrame` event: it might make Druid miss
     /// the monitor's refresh, causing lag or jerky animation.
     AnimFrame(u64),
+    DropEnter,
+    DropLeave,
+    DropMove(DropEvent),
     /// An event containing a [`Command`] to be handled by the widget.
     ///
     /// [`Command`]s are messages, optionally with attached data, that can
@@ -418,7 +421,9 @@ impl Event {
             | Event::KeyUp(_)
             | Event::Paste(_)
             | Event::ImeStateChange
-            | Event::Zoom(_) => false,
+            | Event::Zoom(_)
+            | Event::DropEnter
+            | Event::DropLeave | Event::DropMove(_) => false,
         }
     }
 }

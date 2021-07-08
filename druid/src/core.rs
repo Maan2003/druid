@@ -85,6 +85,7 @@ pub struct WidgetState {
     pub(crate) parent_window_origin: Point,
     /// A flag used to track and debug missing calls to set_origin.
     is_expecting_set_origin_call: bool,
+    in_drag: bool,
     /// The insets applied to the layout rect to generate the paint rect.
     /// In general, these will be zero; the exception is for things like
     /// drop shadows or overflowing text.
@@ -780,6 +781,8 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 // but was hot previously. This is to allow the widget to respond to the movement,
                 // e.g. drag functionality where the widget wants to follow the mouse.
                 if had_active || self.state.is_hot || hot_changed {
+                    // we should also send mouse move here
+                    // but don't know how to send multiple events here
                     let mut mouse_event = mouse_event.clone();
                     mouse_event.pos -= rect.origin().to_vec2();
                     modified_event = Some(Event::MouseMove(mouse_event));
@@ -805,6 +808,37 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                     true
                 } else {
                     false
+                }
+            }
+            // useless event :/, maybe we should remove this?
+            Event::DropEnter => false,
+            Event::DropLeave => {
+                let had_drag = self.state.in_drag;
+                self.state.in_drag = false;
+                had_drag
+            }
+            Event::DropMove(drop_ev) => {
+                if self.layout_rect().contains(drop_ev.position) {
+                    // send DropEnter event
+                    if !self.state.in_drag {
+                        // this is said we need to send two events
+                        modified_event = Some(Event::DropEnter);
+                        self.state.in_drag = true;
+                        true
+                    } else {
+                        let mut drop_ev = drop_ev.clone();
+                        drop_ev.position += self.state.origin.to_vec2();
+                        modified_event = Some(Event::DropMove(drop_ev));
+                        true
+                    }
+                } else {
+                    if self.state.in_drag {
+                        self.state.in_drag = false;
+                        modified_event = Some(Event::DropLeave);
+			true
+                    } else {
+			false
+                    }
                 }
             }
             Event::AnimFrame(_) => {
@@ -1221,6 +1255,7 @@ impl WidgetState {
             is_active: false,
             has_active: false,
             has_focus: false,
+            in_drag: false,
             request_anim: false,
             request_update: false,
             request_focus: None,
