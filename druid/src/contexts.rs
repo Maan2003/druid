@@ -14,6 +14,7 @@
 
 //! The context types that are passed into various widget methods.
 
+use druid_shell::DropContext;
 use std::{
     any::{Any, TypeId},
     collections::VecDeque,
@@ -21,7 +22,6 @@ use std::{
     rc::Rc,
     time::Duration,
 };
-use druid_shell::DropContext;
 use tracing::{error, trace, warn};
 
 use crate::core::{CommandQueue, CursorChange, FocusChange, WidgetState};
@@ -686,7 +686,7 @@ impl EventCtx<'_, '_> {
     }
 
     pub fn drop_context(&self) -> Option<DropContext> {
-	self.state.window.drop_context()
+        self.state.window.drop_context()
     }
 }
 

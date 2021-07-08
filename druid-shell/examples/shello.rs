@@ -17,7 +17,11 @@ use std::any::Any;
 use druid_shell::kurbo::{Line, Size};
 use druid_shell::piet::{Color, RenderContext};
 
-use druid_shell::{Application, ClipboardFormat, Cursor, DropContext, DropEvent, FileDialogOptions, FileDialogToken, FileInfo, FileSpec, HotKey, KeyEvent, Menu, MouseEvent, Region, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle};
+use druid_shell::{
+    Application, ClipboardFormat, Cursor, DropContext, DropEvent, FileDialogOptions,
+    FileDialogToken, FileInfo, FileSpec, HotKey, KeyEvent, Menu, MouseEvent, Region, SysMods,
+    TimerToken, WinHandler, WindowBuilder, WindowHandle,
+};
 
 const BG_COLOR: Color = Color::rgb8(0x27, 0x28, 0x22);
 const FG_COLOR: Color = Color::rgb8(0xf0, 0xf0, 0xea);
@@ -122,7 +126,7 @@ impl WinHandler for HelloState {
     }
 
     fn drop_motion(&mut self, event: &DropEvent) {
-	println!("drop moved to {:?}", event.position);
+        println!("drop moved to {:?}", event.position);
     }
 
     fn request_close(&mut self) {

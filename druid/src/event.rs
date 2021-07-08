@@ -423,7 +423,8 @@ impl Event {
             | Event::ImeStateChange
             | Event::Zoom(_)
             | Event::DropEnter
-            | Event::DropLeave | Event::DropMove(_) => false,
+            | Event::DropLeave
+            | Event::DropMove(_) => false,
         }
     }
 }

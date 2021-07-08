@@ -37,11 +37,11 @@ use tracing::{error, warn};
 #[cfg(feature = "raw-win-handle")]
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::DropEvent;
 use crate::backend::clipboard::Clipboard;
 use crate::backend::dnd::DropContext;
 use crate::kurbo::{Insets, Point, Rect, Size, Vec2};
 use crate::piet::{Piet, PietText, RenderContext};
+use crate::DropEvent;
 
 use crate::common_util::{ClickCounter, IdleCallback};
 use crate::dialog::{FileDialogOptions, FileDialogType, FileInfo};

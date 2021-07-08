@@ -835,9 +835,9 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                     if self.state.in_drag {
                         self.state.in_drag = false;
                         modified_event = Some(Event::DropLeave);
-			true
+                        true
                     } else {
-			false
+                        false
                     }
                 }
             }
